@@ -1,0 +1,31 @@
+{
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#4a4a4a",
+    "activityBar.background": "#4a4a4a",
+    "activityBar.foreground": "#15202b",
+    "activityBar.inactiveForeground": "#15202b99",
+    "activityBarBadge.background": "#bfffce",
+    "activityBarBadge.foreground": "#15202b",
+    "commandCenter.border": "#15202b99",
+    "sash.hoverBorder": "#4a4a4a",
+    "statusBar.background": "#4a4a4a",
+    "statusBar.foreground": "#15202b",
+    "statusBarItem.hoverBackground": "#4a4a4a",
+    "statusBarItem.remoteBackground": "#4a4a4a",
+    "statusBarItem.remoteForeground": "#15202b",
+    "titleBar.activeBackground": "#4a4a4a",
+    "titleBar.activeForeground": "#15202b",
+    "titleBar.inactiveBackground": "#4a4a4a",
+    "titleBar.inactiveForeground": "#15202b99"
+  },
+  "peacock.color": "#4a4a4a",
+  "tailwindCSS.classAttributes": [
+    "class",
+    "className",
+    "ngClass",
+    "Classes",
+    "styles",
+    ".*Styles.*",
+    "classNames"
+  ]
+}
