@@ -4,13 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run setup:certs && next build",
+    "build": "tsc",
     "postbuild": "next-sitemap",
     "start": "next start",
     "lint": "next lint",
+    "init-db": "node dist/scripts/init-db.js",
     "slicemachine": "start-slicemachine",
-    "setup:certs": "ts-node scripts/get-certificate.ts",
-    "test:db": "ts-node scripts/test-connection.ts"
+    "test:db": "node dist/scripts/test-connection.js"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.7.4",
@@ -22,11 +22,15 @@
     "@prismicio/next": "^1.7.1",
     "@prismicio/react": "^2.9.1",
     "@prismicio/types": "^0.2.9",
+    "@sentry/nextjs": "^8.47.0",
+    "@sentry/node": "^8.47.0",
     "@slicemachine/init": "^2.10.18",
     "axios": "^1.7.9",
     "crisp-sdk-web": "^1.0.22",
+    "dotenv": "^16.4.7",
     "eslint": "8.47.0",
     "eslint-config-next": "13.4.19",
+    "express-healthcheck": "^0.1.0",
     "form-data": "^4.0.0",
     "katex": "^0.16.19",
     "mongodb": "^6.3.0",
@@ -52,6 +56,7 @@
   "devDependencies": {
     "@slicemachine/adapter-next": "^0.3.61",
     "@tailwindcss/typography": "^0.5.10",
+    "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^29.5.12",
     "@types/mdx": "^2.0.12",
     "@types/mongoose": "^5.11.97",
@@ -60,10 +65,13 @@
     "@types/react-dom": "^18.2.23",
     "@types/react-syntax-highlighter": "^15.5.11",
     "autoprefixer": "^10.4.19",
+    "bcryptjs": "^2.4.3",
     "daisyui": "^4.10.1",
     "postcss": "^8.4.38",
     "slice-machine-ui": "^2.11.1",
     "tailwindcss": "^3.4.3",
+    "ts-node": "^10.9.2",
     "typescript": "^5.4.3"
-  }
+  },
+  "type": "module"
 }

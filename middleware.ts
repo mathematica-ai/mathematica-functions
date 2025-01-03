@@ -1,21 +1,33 @@
 import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@/prismicio";
-import { redirectToPreviewURL, setPreviewData } from "@prismicio/next";
+import { getToken } from "next-auth/jwt";
 
 export async function middleware(request: NextRequest) {
   const client = createClient();
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
 
-  if (request.nextUrl.pathname === "/api/preview") {
-    const { token, documentId } = request.nextUrl.query;
-
+  // Protect /functions route
+  if (request.nextUrl.pathname.startsWith('/functions')) {
     if (!token) {
+      return NextResponse.redirect(new URL('/auth/signin', request.url));
+    }
+  }
+
+  // Handle Prismic preview
+  if (request.nextUrl.pathname === "/api/preview") {
+    const { token: previewToken, documentId } = request.nextUrl.query;
+
+    if (!previewToken) {
       return new Response("Missing token", { status: 401 });
     }
 
     try {
       const response = await client.enableDataToPreviews({
-        token: token as string,
+        token: previewToken as string,
         documentId: documentId as string,
       });
 
@@ -29,5 +41,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/preview"],
+  matcher: [
+    "/api/preview",
+    "/functions/:path*",
+  ],
 }; 

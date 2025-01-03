@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
 import { getServerSession } from "next-auth";
@@ -7,13 +8,18 @@ import Header from "@/components/Header";
 import { createClient } from "@/prismicio";
 import "./globals.css";
 
-// Define the theme script
 const themeScript = `
 	(function() {
+		let theme = 'light';
 		try {
-			const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-			document.documentElement.setAttribute('data-theme', theme);
+			const stored = localStorage.getItem('theme');
+			if (stored) {
+				theme = stored;
+			} else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+				theme = 'dark';
+			}
 		} catch (e) {}
+		document.documentElement.setAttribute('data-theme', theme);
 	})()
 `;
 
@@ -30,14 +36,15 @@ export default async function RootLayout({
 	const session = await getServerSession(authOptions);
 	const client = createClient();
 	
-	let header;
+	let header = null;
 	try {
-		header = await client.getSingle('header');
+		if (process.env.PRISMIC_ACCESS_TOKEN && process.env.PRISMIC_REPOSITORY_NAME) {
+			header = await client.getSingle('header').catch(() => null);
+		}
 	} catch (error) {
 		console.error('Error fetching header data:', error);
-		header = null;
 	}
-	
+
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<head>
@@ -47,11 +54,20 @@ export default async function RootLayout({
 					}}
 				/>
 			</head>
-			<body>
+			<body suppressHydrationWarning>
 				<Providers session={session}>
-					<Header session={session} headerData={header} />
-					{children}
-					<Toaster position="bottom-right" />
+					<div className="min-h-screen flex flex-col">
+						<Header session={session} headerData={header} />
+						<main className="flex-1">
+							{children}
+						</main>
+						<Toaster 
+							position="bottom-right"
+							toastOptions={{
+								duration: 3000,
+							}}
+						/>
+					</div>
 				</Providers>
 			</body>
 		</html>

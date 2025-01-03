@@ -1,99 +1,87 @@
+'use client';
+
+import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
-import { FaGithub } from "react-icons/fa";
+import { usePathname } from "next/navigation";
 import ThemeToggle from "./ThemeToggle";
-import { HeaderDocument } from "@/prismicio-types";
-import { Session } from "next-auth";
+import { useEffect, useState } from "react";
 
-interface HeaderProps {
-  session: Session | null;
-  headerData: HeaderDocument;
-}
+export default function Header() {
+  const { data: session } = useSession();
+  const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+  const [currentDate, setCurrentDate] = useState<{ month: string; year: number }>({
+    month: '',
+    year: 0
+  });
 
-export default function Header({ session, headerData }: HeaderProps) {
-  const currentMonth = new Date().toLocaleString('default', { month: 'long' }).toUpperCase();
-  const currentYear = new Date().getFullYear();
+  useEffect(() => {
+    setMounted(true);
+    const date = new Date();
+    setCurrentDate({
+      month: date.toLocaleString('default', { month: 'long' }).toUpperCase(),
+      year: date.getFullYear()
+    });
+  }, []);
 
-  // Add fallback values if headerData is not available
-  const defaultHeaderData = {
-    data: {
-      logo_text: 'MATHEMATIQUES.AI',
-      nav_items: [],
-      github_url: 'https://github.com',
-      contact_button_text: 'CONTACT',
-      login_text: 'LOG IN',
-      functions_text: 'FUNCTIONS'
-    }
-  };
-
-  const header = headerData || defaultHeaderData;
+  if (!mounted) return null;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-base-300 bg-base-100/80 backdrop-blur-lg">
-      <div className="container mx-auto flex h-14 items-center justify-between px-4">
-        {/* Left side - Logo and Nav */}
-        <nav className="flex items-center gap-6">
-          <Link
-            href="/"
-            className="text-sm font-medium transition-colors hover:text-primary"
-          >
-            {header.data.logo_text}
+      <nav className="container mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link href="/" className="text-lg font-bold">
+            MATHEMATIQUES.AI
           </Link>
-          
-          {header.data.nav_items.map((item) => (
-            <Link
-              key={item.link.url}
-              href={item.link.url}
-              className="text-sm font-medium transition-colors hover:text-primary"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Right side - Date, Theme Toggle, Auth */}
-        <div className="flex items-center gap-4">
           <span className="text-xs text-foreground/60">
-            {currentMonth} {currentYear}
+            {currentDate.month} {currentDate.year}
           </span>
-          
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            
-            {session ? (
-              <Link 
-                href="/functions"
-                className="btn btn-sm btn-ghost"
-              >
-                {header.data.functions_text}
-              </Link>
-            ) : (
-              <Link 
-                href="/api/auth/signin"
-                className="btn btn-sm btn-ghost"
-              >
-                {header.data.login_text}
-              </Link>
-            )}
-
-            <a
-              href={header.data.github_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-sm btn-ghost"
-            >
-              <FaGithub className="h-4 w-4" />
-              <span className="sr-only">GitHub</span>
-            </a>
-
-            <Link
-              href="/contact"
-              className="btn btn-sm btn-primary"
-            >
-              {header.data.contact_button_text}
-            </Link>
-          </div>
         </div>
-      </div>
+
+        <div className="flex items-center space-x-2">
+          <ThemeToggle />
+          {session ? (
+            <>
+              <Link href="/functions" className="btn btn-primary btn-sm">
+                FUNCTIONS
+              </Link>
+              <div className="dropdown dropdown-end">
+                <label tabIndex={0} className="btn btn-ghost btn-circle avatar">
+                  <div className="w-8 rounded-full">
+                    {session.user?.image ? (
+                      <img src={session.user.image} alt={session.user?.name || 'User'} />
+                    ) : (
+                      <div className="bg-neutral text-neutral-content rounded-full w-8 h-8 flex items-center justify-center">
+                        <span className="text-sm">{session.user?.name?.charAt(0) || '?'}</span>
+                      </div>
+                    )}
+                  </div>
+                </label>
+                <ul tabIndex={0} className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-200 rounded-box w-52">
+                  <li className="menu-title">
+                    <span>{session.user?.name}</span>
+                  </li>
+                  <li className="text-sm opacity-70">
+                    <span>{session.user?.email}</span>
+                  </li>
+                  <li className="mt-2">
+                    <button 
+                      onClick={() => signOut({ callbackUrl: '/' })}
+                      className="btn btn-sm btn-error btn-outline"
+                    >
+                      Sign out
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </>
+          ) : (
+            <Link href="/auth/signin" className="btn btn-primary btn-sm">
+              LOG IN
+            </Link>
+          )}
+        </div>
+      </nav>
     </header>
   );
 }

@@ -1,80 +1,189 @@
-import NextAuth from "next-auth";
-import type { NextAuthOptions } from "next-auth";
+import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import EmailProvider from "next-auth/providers/email";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
-import config from "@/config";
-import connectMongo from "./mongo";
+import { clientPromise } from "./mongoose";
 
-interface NextAuthOptionsExtended extends NextAuthOptions {
-  adapter: any;
+// Add type for Google OAuth profile
+interface GoogleProfile {
+  email_verified: boolean;
+  email: string;
+  name: string;
+  picture: string;
+  sub: string;
 }
 
-export const authOptions: NextAuthOptionsExtended = {
-  // Set any random key in .env.local
-  secret: process.env.NEXTAUTH_SECRET,
+// Extend the Session type
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id?: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    }
+  }
+}
+
+export const authOptions: NextAuthOptions = {
+  debug: true,
   providers: [
     GoogleProvider({
-      // Follow the "Login with Google" tutorial to get your credentials
-      clientId: process.env.GOOGLE_ID || "",
-      clientSecret: process.env.GOOGLE_SECRET || "",
+      clientId: process.env.GOOGLE_ID!,
+      clientSecret: process.env.GOOGLE_SECRET!,
       authorization: {
         params: {
-          prompt: "consent",
           access_type: "offline",
-          response_type: "code"
+          prompt: "consent",
+          response_type: "code",
         }
-      },
-      async profile(profile) {
-        return {
-          id: profile.sub,
-          name: profile.given_name ? profile.given_name : profile.name,
-          email: profile.email,
-          image: profile.picture,
-          createdAt: new Date(),
-        };
-      },
+      }
     }),
-    // Follow the "Login with Email" tutorial to set up your email server
-    // Requires a MongoDB database. Set MONOGODB_URI env variable.
-    ...(connectMongo
-      ? [
-          EmailProvider({
-            server: {
-              host: "smtp.resend.com",
-              port: 465,
-              auth: {
-                user: "resend",
-                pass: process.env.RESEND_API_KEY,
-              },
-            },
-            from: config.resend.fromNoReply,
-          }),
-        ]
-      : []),
   ],
-  // New users will be saved in Database (MongoDB Atlas). Each user (model) has some fields like name, email, image, etc..
-  // Requires a MongoDB database. Set MONOGODB_URI env variable.
-  // Learn more about the model type: https://next-auth.js.org/v3/adapters/models
-  ...(connectMongo && { adapter: MongoDBAdapter(connectMongo) }),
-
+  adapter: MongoDBAdapter(clientPromise),
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    },
+    csrfToken: {
+      name: `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    }
+  },
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   callbacks: {
-    session: async ({ session, token }) => {
+    async signIn({ user, account, profile }) {
+      try {
+        console.log("Sign-in attempt:", { user, account, profile });
+        
+        if (!user.email) {
+          console.log("No email provided");
+          return false;
+        }
+
+        // Get MongoDB client
+        const client = await clientPromise;
+        const db = client.db();
+
+        // Find user by email only
+        const existingUser = await db.collection('users').findOne({ 
+          email: user.email 
+        });
+
+        console.log("Existing user:", existingUser);
+
+        if (existingUser) {
+          // Update the user with latest provider details
+          const updateResult = await db.collection('users').updateOne(
+            { email: user.email },
+            {
+              $set: {
+                provider: account?.provider,
+                providerAccountId: account?.providerAccountId,
+                name: user.name,
+                image: user.image,
+                email: user.email,
+                emailVerified: new Date(),
+                updatedAt: new Date()
+              }
+            }
+          );
+          console.log("Update result:", updateResult);
+
+          // Create account link if it doesn't exist
+          const existingAccount = await db.collection('accounts').findOne({
+            userId: existingUser._id,
+            provider: account?.provider
+          });
+
+          if (!existingAccount && account) {
+            await db.collection('accounts').insertOne({
+              userId: existingUser._id,
+              type: account.type,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              access_token: account.access_token,
+              token_type: account.token_type,
+              scope: account.scope,
+              id_token: account.id_token,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+            console.log("Account linked successfully");
+          }
+
+          return true;
+        }
+
+        console.log("User not found in database");
+        return false;
+      } catch (error) {
+        console.error("Sign in callback error:", error);
+        return false;
+      }
+    },
+    async redirect({ url, baseUrl }) {
+      try {
+        console.log("Redirect callback:", { url, baseUrl });
+        
+        // Always redirect to /functions after successful sign in
+        if (url.includes('auth/signin')) {
+          return `${baseUrl}/functions`;
+        }
+        
+        // Default redirects
+        if (url.startsWith("/")) return `${baseUrl}${url}`;
+        if (new URL(url).origin === baseUrl) return url;
+        return baseUrl;
+      } catch (error) {
+        console.error("Redirect callback error:", error);
+        return baseUrl;
+      }
+    },
+    async session({ session, token }) {
       if (session?.user) {
         session.user.id = token.sub;
+        
+        // Get the latest user data from the database
+        const client = await clientPromise;
+        const db = client.db();
+        const user = await db.collection('users').findOne({ email: session.user.email });
+        
+        if (user) {
+          session.user.name = user.name;
+          session.user.image = user.image;
+        }
       }
       return session;
     },
   },
-  session: {
-    strategy: "jwt",
+  pages: {
+    signIn: '/auth/signin',
+    signOut: '/',
+    error: '/auth/error',
   },
-  theme: {
-    brandColor: config.colors.main,
-    // Add you own logo below. Recommended size is rectangle (i.e. 200x50px) and show your logo + name.
-    // It will be used in the login flow to display your logo. If you don't add it, it will look faded.
-    logo: `https://${config.domainName}/logoAndName.png`,
-  },
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
-export default NextAuth(authOptions);
+export default authOptions;

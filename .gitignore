@@ -41,3 +41,5 @@ public/sitemap-0.xml
 
 # Certificates
 certs/
+# Sentry Config File
+.env.sentry-build-plugin

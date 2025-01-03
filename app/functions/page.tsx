@@ -3,15 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useSession, signIn } from "next-auth/react";
 import type { Message, ChatResponse } from "@/types/chat";
-import { FaMicrophone, FaStop, FaPaperPlane, FaRegCopy, FaLanguage, FaEllipsisV } from "react-icons/fa";
+import { FaMicrophone, FaStop, FaPaperPlane, FaRegCopy, FaLanguage, FaPlay, FaPause, FaCog, FaVolumeUp } from "react-icons/fa";
 import { MdTranslate } from "react-icons/md";
 import { toast } from "react-hot-toast";
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import ThemeToggle from "@/components/ThemeToggle";
-import { sendChatMessage, formatChatMessage } from "@/libs/chat";
+import Header from "@/components/Header";
+import { sendChatMessage } from "@/libs/chat";
 
 export default function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -27,6 +27,15 @@ export default function ChatUI() {
   const [transcriptionMode, setTranscriptionMode] = useState<'transcribe' | 'translate'>('transcribe');
   const [transcriptionLanguage, setTranscriptionLanguage] = useState<string>('en');
   const [showSettings, setShowSettings] = useState(false);
+  const [isPlaying, setIsPlaying] = useState<{ [key: number]: boolean }>({});
+  const speechSynthesis = typeof window !== 'undefined' ? window.speechSynthesis : null;
+  const [voiceSettings, setVoiceSettings] = useState({
+    rate: 1,
+    pitch: 1,
+    volume: 1,
+    voice: null as SpeechSynthesisVoice | null
+  });
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
   // Auto scroll to bottom
   const scrollToBottom = () => {
@@ -177,6 +186,142 @@ export default function ChatUI() {
     }
   };
 
+  // Initialize available voices
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = speechSynthesis?.getVoices() || [];
+      const englishVoice = voices.find(voice => voice.lang.startsWith('en'));
+      if (englishVoice) {
+        setVoiceSettings(prev => ({ ...prev, voice: englishVoice }));
+      }
+    };
+
+    // Load voices immediately and also listen for the voiceschanged event
+    loadVoices();
+    speechSynthesis?.addEventListener('voiceschanged', loadVoices);
+
+    return () => {
+      speechSynthesis?.removeEventListener('voiceschanged', loadVoices);
+    };
+  }, []);
+
+  // Voice settings component
+  const VoiceSettingsPanel = () => (
+    <div className="dropdown dropdown-end">
+      <label tabIndex={0} className="btn btn-ghost btn-xs btn-circle">
+        <FaCog className="w-3 h-3" />
+      </label>
+      <div tabIndex={0} className="dropdown-content z-[1] p-4 shadow bg-base-200 rounded-box w-64">
+        <h3 className="font-semibold mb-2 flex items-center gap-2">
+          <FaVolumeUp className="w-4 h-4" />
+          Voice Settings
+        </h3>
+        <div className="space-y-3">
+          <div>
+            <label className="label">
+              <span className="label-text">Speed</span>
+              <span className="label-text-alt">{voiceSettings.rate}x</span>
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={voiceSettings.rate}
+              onChange={(e) => setVoiceSettings(prev => ({ ...prev, rate: parseFloat(e.target.value) }))}
+              className="range range-xs"
+            />
+          </div>
+          <div>
+            <label className="label">
+              <span className="label-text">Pitch</span>
+              <span className="label-text-alt">{voiceSettings.pitch}</span>
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={voiceSettings.pitch}
+              onChange={(e) => setVoiceSettings(prev => ({ ...prev, pitch: parseFloat(e.target.value) }))}
+              className="range range-xs"
+            />
+          </div>
+          <div>
+            <label className="label">
+              <span className="label-text">Volume</span>
+              <span className="label-text-alt">{voiceSettings.volume * 100}%</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={voiceSettings.volume}
+              onChange={(e) => setVoiceSettings(prev => ({ ...prev, volume: parseFloat(e.target.value) }))}
+              className="range range-xs"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const toggleSpeech = (idx: number, text: string) => {
+    if (isPlaying[idx]) {
+      speechSynthesis?.cancel();
+      setIsPlaying(prev => ({ ...prev, [idx]: false }));
+    } else {
+      // Cancel any currently playing speech
+      speechSynthesis?.cancel();
+      
+      // Create new utterance with enhanced settings
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Apply voice settings
+      if (voiceSettings.voice) {
+        utterance.voice = voiceSettings.voice;
+      }
+      utterance.rate = voiceSettings.rate;
+      utterance.pitch = voiceSettings.pitch;
+      utterance.volume = voiceSettings.volume;
+
+      // Handle events
+      utterance.onstart = () => {
+        setIsPlaying(prev => {
+          const newState = { ...prev };
+          // Reset all other playing states
+          Object.keys(newState).forEach(key => {
+            newState[Number(key)] = false;
+          });
+          return { ...newState, [idx]: true };
+        });
+        toast.success("Started speaking", { icon: '🔊' });
+      };
+
+      utterance.onend = () => {
+        setIsPlaying(prev => ({ ...prev, [idx]: false }));
+        toast.success("Finished speaking", { icon: '✅' });
+      };
+
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        setIsPlaying(prev => ({ ...prev, [idx]: false }));
+        toast.error("Error during speech synthesis", { icon: '❌' });
+      };
+
+      // Start speaking
+      speechSynthesis?.speak(utterance);
+    }
+  };
+
+  // Cleanup speech synthesis on unmount
+  useEffect(() => {
+    return () => {
+      speechSynthesis?.cancel();
+    };
+  }, []);
+
   return (
     <div className="container mx-auto max-w-5xl p-4">
       {status === "loading" ? (
@@ -200,6 +345,7 @@ export default function ChatUI() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
+
           {/* Settings Bar */}
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -225,17 +371,6 @@ export default function ChatUI() {
                   <li><a onClick={() => setTranscriptionMode('transcribe')}>Transcribe (Original)</a></li>
                   <li><a onClick={() => setTranscriptionMode('translate')}>Translate to English</a></li>
                 </ul>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <ThemeToggle />
-              <div className="flex items-center gap-2">
-                <div className="avatar placeholder">
-                  <div className="bg-neutral text-neutral-content rounded-full w-8">
-                    <span className="text-xs">{session.user?.name?.charAt(0) || '?'}</span>
-                  </div>
-                </div>
-                <span className="text-sm opacity-70">{session.user?.name}</span>
               </div>
             </div>
           </div>
@@ -277,7 +412,7 @@ export default function ChatUI() {
                     className={`chat-bubble relative group ${
                       msg.role === "user"
                         ? "chat-bubble-primary"
-                        : "chat-bubble-secondary"
+                        : "chat-bubble bg-neutral/20"
                     }`}
                   >
                     <ReactMarkdown
@@ -287,12 +422,31 @@ export default function ChatUI() {
                     >
                       {msg.content}
                     </ReactMarkdown>
-                    <button
-                      onClick={() => copyToClipboard(msg.content)}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <FaRegCopy className="w-4 h-4" />
-                    </button>
+                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {msg.role === "assistant" && (
+                        <>
+                          <VoiceSettingsPanel />
+                          <button
+                            onClick={() => toggleSpeech(idx, msg.content)}
+                            className="btn btn-ghost btn-xs btn-circle tooltip tooltip-left hover:bg-base-300 transition-colors duration-200"
+                            data-tip={isPlaying[idx] ? "Stop speaking" : "Read aloud"}
+                          >
+                            {isPlaying[idx] ? (
+                              <FaPause className="w-3 h-3 text-error animate-pulse" />
+                            ) : (
+                              <FaPlay className="w-3 h-3 text-success hover:scale-110 transition-transform duration-200" />
+                            )}
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => copyToClipboard(msg.content)}
+                        className="btn btn-ghost btn-xs btn-circle tooltip tooltip-left hover:bg-base-300 transition-colors duration-200"
+                        data-tip="Copy to clipboard"
+                      >
+                        <FaRegCopy className="w-3 h-3 hover:scale-110 transition-transform duration-200" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

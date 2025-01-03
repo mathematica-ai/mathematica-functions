@@ -1,4 +1,5 @@
-/** @type {import('next').NextConfig} */
+import { withSentryConfig } from "@sentry/nextjs";
+
 const nextConfig = {
   reactStrictMode: true,
   images: {
@@ -12,4 +13,6 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default withSentryConfig(nextConfig, {
+  // For all available options, see:
+});

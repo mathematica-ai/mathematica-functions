@@ -16,24 +16,7 @@ export function createClient({
   ...config
 }: prismicNext.CreateClientConfig = {}) {
   const client = prismic.createClient(repositoryName, {
-    routes: [
-      {
-        type: "homepage",
-        path: "/",
-      },
-      {
-        type: "page",
-        path: "/:uid",
-      },
-      {
-        type: "blog_post",
-        path: "/blog/:uid",
-      },
-      {
-        type: "header",
-        path: "/header",
-      },
-    ],
+    routes: [],
     ...config,
   });
 
