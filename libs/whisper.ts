@@ -11,16 +11,15 @@ export async function transcribeAudio(
   audioBlob: Blob, 
   options: WhisperOptions = {}
 ): Promise<string> {
-  // Convert webm to mp3 if needed (Whisper accepts mp3)
   const formData = new FormData();
   formData.append('file', audioBlob, 'recording.webm');
   formData.append('model', 'whisper-1');
   
-  // Add optional parameters
-  if (options.language) formData.append('language', options.language);
-  if (options.prompt) formData.append('prompt', options.prompt);
-  if (options.temperature) formData.append('temperature', options.temperature.toString());
-  if (options.response_format) formData.append('response_format', options.response_format);
+  // Add optional parameters with defaults
+  formData.append('language', options.language || 'en');
+  formData.append('prompt', options.prompt || 'This is a conversation about AI and technology');
+  formData.append('temperature', (options.temperature || 0.3).toString());
+  formData.append('response_format', options.response_format || 'json');
 
   try {
     const response = await axios.post(
@@ -46,22 +45,36 @@ export async function transcribeAudio(
 }
 
 // Translation function - converts audio to English
-export async function translateAudio(audioBlob: Blob): Promise<string> {
+export async function translateAudio(
+  audioBlob: Blob,
+  options: Omit<WhisperOptions, 'language'> = {}
+): Promise<string> {
   const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.wav');
+  formData.append('file', audioBlob, 'recording.webm');
   formData.append('model', 'whisper-1');
-  formData.append('response_format', 'json');
+  formData.append('response_format', options.response_format || 'json');
+  formData.append('prompt', options.prompt || 'This is a conversation about AI and technology');
+  formData.append('temperature', (options.temperature || 0.3).toString());
 
-  const response = await axios.post(
-    'https://api.openai.com/v1/audio/translations',
-    formData,
-    {
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'multipart/form-data',
-      },
+  try {
+    const response = await axios.post(
+      'https://api.openai.com/v1/audio/translations',
+      formData,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    if (response.data?.text) {
+      return response.data.text;
+    } else {
+      throw new Error('No translation received');
     }
-  );
-
-  return response.data.text;
+  } catch (error) {
+    console.error('Whisper Translation API Error:', error.response?.data || error);
+    throw error;
+  }
 } 

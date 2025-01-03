@@ -1,7 +1,11 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import EmailProvider from "next-auth/providers/email";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import { clientPromise } from "./mongoose";
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Add type for Google OAuth profile
 interface GoogleProfile {
@@ -27,6 +31,37 @@ declare module "next-auth" {
 export const authOptions: NextAuthOptions = {
   debug: true,
   providers: [
+    EmailProvider({
+      server: process.env.RESEND_API_KEY ? {
+        host: "smtp.resend.com",
+        port: 465,
+        auth: {
+          user: "resend",
+          pass: process.env.RESEND_API_KEY
+        }
+      } : "",
+      from: "Mathematica <onboarding@resend.dev>",
+      sendVerificationRequest: async ({ identifier, url, provider }) => {
+        try {
+          const { data, error } = await resend.emails.send({
+            from: provider.from!,
+            to: identifier,
+            subject: "Sign in to Mathematica",
+            html: `<p>Click <a href="${url}">here</a> to sign in to Mathematica.</p>
+                  <p>If you did not request this email, you can safely ignore it.</p>`
+          });
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          console.log('Verification email sent:', data);
+        } catch (error) {
+          console.error('Error sending verification email:', error);
+          throw new Error('Failed to send verification email');
+        }
+      }
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_ID!,
       clientSecret: process.env.GOOGLE_SECRET!,

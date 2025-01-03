@@ -15,12 +15,15 @@ export async function POST(req: Request) {
 
     const formData = await req.formData();
     const audioFile = formData.get('audio') as Blob;
+    const mode = formData.get('mode') as 'transcribe' | 'translate';
+    const optionsStr = formData.get('options') as string;
     
     // Debug log
-    console.log('Audio file details:', {
-      size: audioFile.size,
-      type: audioFile.type,
-      name: (audioFile as any).name
+    console.log('Transcription request:', {
+      mode,
+      options: optionsStr,
+      audioSize: audioFile?.size,
+      audioType: audioFile?.type
     });
 
     if (!audioFile || audioFile.size === 0) {
@@ -30,20 +33,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const options = JSON.parse(formData.get('options') as string || '{}');
-    const mode = formData.get('mode') as 'transcribe' | 'translate' || 'transcribe';
+    const options = optionsStr ? JSON.parse(optionsStr) : {};
 
     let text;
     try {
       if (mode === 'translate') {
-        text = await translateAudio(audioFile);
+        text = await translateAudio(audioFile, options);
+        console.log('Translation result:', text);
       } else {
         text = await transcribeAudio(audioFile, options);
+        console.log('Transcription result:', text);
       }
     } catch (error) {
       console.error('Whisper API Error:', error);
       return NextResponse.json(
-        { error: error.message || "Transcription failed" },
+        { error: error.message || "Processing failed" },
         { status: 500 }
       );
     }
@@ -51,9 +55,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ text });
 
   } catch (error) {
-    console.error("Transcription Error:", error);
+    console.error("API Error:", error);
     return NextResponse.json(
-      { error: "Failed to transcribe audio" },
+      { error: "Failed to process audio" },
       { status: 500 }
     );
   }

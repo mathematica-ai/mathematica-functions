@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useSession, signIn } from "next-auth/react";
 import type { Message, ChatResponse } from "@/types/chat";
-import { FaMicrophone, FaStop, FaPaperPlane, FaRegCopy, FaLanguage, FaPlay, FaPause, FaCog, FaVolumeUp } from "react-icons/fa";
+import { FaMicrophone, FaStop, FaPaperPlane, FaRegCopy, FaLanguage, FaPlay, FaPause, FaCog, FaVolumeUp, FaImage } from "react-icons/fa";
 import { MdTranslate } from "react-icons/md";
 import { toast } from "react-hot-toast";
 import ReactMarkdown from 'react-markdown';
@@ -36,6 +36,8 @@ export default function ChatUI() {
     voice: null as SpeechSynthesisVoice | null
   });
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto scroll to bottom
   const scrollToBottom = () => {
@@ -322,6 +324,90 @@ export default function ChatUI() {
     };
   }, []);
 
+  const uploadFile = async (file: File) => {
+    try {
+      setIsUploading(true);
+      
+      // Get presigned URL
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, fileUrl } = await response.json();
+
+      // Upload to S3
+      const upload = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+          'Access-Control-Allow-Origin': '*',
+        },
+        mode: 'cors',
+      });
+
+      if (!upload.ok) {
+        console.error('Upload failed:', await upload.text());
+        throw new Error('Failed to upload file');
+      }
+
+      return fileUrl;
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload file');
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const fileUrl = await uploadFile(file);
+      
+      // Create a message with the image
+      const userMessage: Message = {
+        content: `![${file.name}](${fileUrl})`,
+        role: "user",
+        timestamp: new Date(),
+        type: "image",
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+      
+      // Send the message with the image URL
+      const response = await sendChatMessage(
+        userMessage.content,
+        messages
+      );
+      
+      setMessages((prev) => [...prev, {
+        content: response.message,
+        role: "assistant",
+        timestamp: new Date(),
+        type: response.type,
+        data: response.data,
+      }]);
+    } catch (error) {
+      console.error('Error handling file:', error);
+      toast.error('Failed to process image');
+    }
+  };
+
   return (
     <div className="container mx-auto max-w-5xl p-4">
       {status === "loading" ? (
@@ -354,7 +440,7 @@ export default function ChatUI() {
                   <FaLanguage className="w-4 h-4" />
                   {transcriptionLanguage.toUpperCase() || 'Auto'}
                 </label>
-                <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-200 rounded-box w-52">
+                <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-200 rounded-box w-52 bg-white">
                   <li><a onClick={() => setTranscriptionLanguage('')}>Auto Detect</a></li>
                   <li><a onClick={() => setTranscriptionLanguage('en')}>English</a></li>
                   <li><a onClick={() => setTranscriptionLanguage('es')}>Spanish</a></li>
@@ -367,7 +453,7 @@ export default function ChatUI() {
                   <MdTranslate className="w-4 h-4" />
                   {transcriptionMode === 'translate' ? 'Translate' : 'Transcribe'}
                 </label>
-                <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-200 rounded-box w-52">
+                <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-200 rounded-box w-52 bg-white">
                   <li><a onClick={() => setTranscriptionMode('transcribe')}>Transcribe (Original)</a></li>
                   <li><a onClick={() => setTranscriptionMode('translate')}>Translate to English</a></li>
                 </ul>
@@ -392,7 +478,7 @@ export default function ChatUI() {
                     <FaMicrophone className="w-12 h-12 opacity-20" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">Start Recording or Type</h3>
-                  <p className="text-sm">Use voice commands or drop files here</p>
+                  <p className="text-sm">Use voice commands, type a message, or send an image</p>
                 </div>
               )}
               {messages.map((msg, idx) => (
@@ -403,25 +489,35 @@ export default function ChatUI() {
                   }`}
                 >
                   <div className="chat-header opacity-50 text-xs">
-                    {msg.role === "user" ? session.user?.name || "You" : "Assistant"}
+                    {msg.role === "user" ? session.user?.name || "You" : "Answer"}
                     <time className="ml-1">
                       {new Date(msg.timestamp).toLocaleTimeString()}
                     </time>
                   </div>
                   <div
-                    className={`chat-bubble relative group ${
+                    className={`chat-bubble relative group mt-2 ${
                       msg.role === "user"
                         ? "chat-bubble-primary"
                         : "chat-bubble bg-neutral/20"
                     }`}
                   >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      className="prose prose-sm max-w-none"
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
+                    {msg.type === "image" ? (
+                      <div className="max-w-sm">
+                        <img 
+                          src={msg.content.match(/\((.*?)\)/)?.[1]} 
+                          alt={msg.content.match(/\[(.*?)\]/)?.[1] || "Uploaded image"}
+                          className="rounded-lg"
+                        />
+                      </div>
+                    ) : (
+                      <ReactMarkdown
+                        remarkPlugins={[remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        className="prose prose-sm max-w-none"
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    )}
                     <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       {msg.role === "assistant" && (
                         <>
@@ -475,7 +571,7 @@ export default function ChatUI() {
                     }}
                     placeholder={isRecording ? "Recording..." : "Type or use voice commands..."}
                     className="textarea textarea-bordered w-full min-h-[60px] pr-12 resize-none bg-base-100/50 focus:bg-base-100"
-                    disabled={isLoading || isRecording}
+                    disabled={isLoading || isRecording || isUploading}
                   />
                   
                   {/* Recording Indicator */}
@@ -486,11 +582,19 @@ export default function ChatUI() {
                     </div>
                   )}
 
+                  {/* Upload Indicator */}
+                  {isUploading && (
+                    <div className="absolute left-0 -top-6 flex items-center gap-2 text-sm text-warning">
+                      <span className="loading loading-spinner loading-xs"></span>
+                      Uploading...
+                    </div>
+                  )}
+
                   {/* Send Button - Positioned inside textarea */}
                   <button
                     type="submit"
                     className="absolute right-2 bottom-2 btn btn-circle btn-sm btn-primary"
-                    disabled={isLoading || !input.trim() || isRecording}
+                    disabled={isLoading || (!input.trim() && !isRecording) || isUploading}
                   >
                     {isLoading ? (
                       <span className="loading loading-spinner loading-xs"></span>
@@ -499,6 +603,26 @@ export default function ChatUI() {
                     )}
                   </button>
                 </div>
+
+                {/* File Upload Input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept="image/*"
+                  className="hidden"
+                />
+
+                {/* Image Upload Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="btn btn-ghost hover:btn-primary btn-circle"
+                  disabled={isLoading || isRecording || isUploading}
+                  data-tip="Upload image"
+                >
+                  <FaImage className="w-4 h-4" />
+                </button>
 
                 {/* Voice Recording Button */}
                 <button
@@ -510,7 +634,7 @@ export default function ChatUI() {
                       : 'btn-ghost hover:btn-primary'
                   } btn-circle`}
                   data-tip={isRecording ? 'Stop recording' : 'Start recording'}
-                  disabled={isLoading}
+                  disabled={isLoading || isUploading}
                 >
                   {isRecording ? (
                     <div className="relative">

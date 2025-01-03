@@ -67,9 +67,9 @@ const config = {
   },
   aws: {
     // If you use AWS S3/Cloudfront, put values in here
-    bucket: "bucket-name",
-    bucketUrl: `https://bucket-name.s3.amazonaws.com/`,
-    cdn: "https://cdn-id.cloudfront.net/",
+    bucket: "mathematica-functions",
+    bucketUrl: `https://mathematica-functions.s3.eu-west-3.amazonaws.com/`,
+    cdn: `https://mathematica-functions.s3.eu-west-3.amazonaws.com/`,
   },
   resend: {
     // REQUIRED — Email 'From' field to be used when sending magic login links

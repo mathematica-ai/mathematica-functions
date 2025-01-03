@@ -1,0 +1,23 @@
+{
+    "CORSRules": [
+        {
+            "AllowedHeaders": [
+                "*"
+            ],
+            "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE",
+                "HEAD"
+            ],
+            "AllowedOrigins": [
+                "http://localhost:3000",
+                "https://functions.mathematica.ai"
+            ],
+            "ExposeHeaders": [
+                "ETag"
+            ]
+        }
+    ]
+} 

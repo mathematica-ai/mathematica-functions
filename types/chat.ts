@@ -1,14 +1,17 @@
+export type MessageRole = "user" | "assistant";
+export type MessageType = "text" | "image" | "code" | "math";
+
 export interface Message {
   content: string;
-  role: "user" | "assistant";
+  role: MessageRole;
   timestamp: Date;
-  type?: string;
+  type?: MessageType;
   data?: any;
 }
 
 export interface ChatResponse {
   message: string;
-  type?: string;
+  type?: MessageType;
   data?: any;
 }
 
