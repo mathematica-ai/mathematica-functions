@@ -40,7 +40,7 @@ export type HeaderDocument<Lang extends string = string> =
     Lang
   >;
 
-type PageDocumentDataSlicesSlice = never;
+type PageDocumentDataSlicesSlice = ManifestoSlice | FeaturesGridSlice;
 
 /**
  * Content for page documents
@@ -166,6 +166,51 @@ export type FeaturesGridSlice = prismic.SharedSlice<
   FeaturesGridSliceVariation
 >;
 
+/**
+ * Primary content in *Manifesto → Default → Primary*
+ */
+export interface ManifestoSliceDefaultPrimary {
+  /**
+   * manifesto field in *Manifesto → Default → Primary*
+   *
+   * - **Field Type**: Rich Text
+   * - **Placeholder**: *None*
+   * - **API ID Path**: manifesto.default.primary.manifesto
+   * - **Documentation**: https://prismic.io/docs/field#rich-text-title
+   */
+  manifesto: prismic.RichTextField;
+}
+
+/**
+ * Default variation for Manifesto Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slice
+ */
+export type ManifestoSliceDefault = prismic.SharedSliceVariation<
+  "default",
+  Simplify<ManifestoSliceDefaultPrimary>,
+  never
+>;
+
+/**
+ * Slice variation for *Manifesto*
+ */
+type ManifestoSliceVariation = ManifestoSliceDefault;
+
+/**
+ * Manifesto Shared Slice
+ *
+ * - **API ID**: `manifesto`
+ * - **Description**: Manifesto
+ * - **Documentation**: https://prismic.io/docs/slice
+ */
+export type ManifestoSlice = prismic.SharedSlice<
+  "manifesto",
+  ManifestoSliceVariation
+>;
+
 declare module "@prismicio/client" {
   interface CreateClient {
     (
@@ -200,6 +245,10 @@ declare module "@prismicio/client" {
       FeaturesGridSlice,
       FeaturesGridSliceVariation,
       FeaturesGridSliceDefault,
+      ManifestoSlice,
+      ManifestoSliceDefaultPrimary,
+      ManifestoSliceVariation,
+      ManifestoSliceDefault,
     };
   }
 }

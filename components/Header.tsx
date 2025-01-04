@@ -31,7 +31,7 @@ export default function Header() {
       <nav className="container mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link href="/" className="text-lg font-bold">
-            MATHEMATIQUES.AI
+            Mathematica.AI
           </Link>
           <span className="text-xs text-foreground/60">
             {currentDate.month} {currentDate.year}

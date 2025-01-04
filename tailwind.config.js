@@ -32,6 +32,8 @@ export default {
     themes: [
       {
         light: {
+          "background": "#DEDEE7",
+          
           "primary": "#2563eb",          // Blue-600
           "primary-focus": "#1d4ed8",    // Blue-700
           "primary-content": "#ffffff",   // White
@@ -64,6 +66,8 @@ export default {
           "--tab-radius": "0.5rem",
         },
         dark: {
+          "background": "#4A4A4B",
+
           "primary": "#3b82f6",          // Blue-500
           "primary-focus": "#2563eb",    // Blue-600
           "primary-content": "#ffffff",   // White

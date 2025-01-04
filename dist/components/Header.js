@@ -21,7 +21,7 @@ export default function Header({ session, headerData }) {
     if (!mounted)
         return null;
     const defaultData = {
-        logo_text: 'MATHEMATIQUES.AI',
+        logo_text: 'Mathematica.AI',
         nav_items: [],
         github_url: 'https://github.com',
         contact_button_text: 'CONTACT',

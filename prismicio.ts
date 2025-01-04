@@ -4,7 +4,7 @@ import * as prismicNext from "@prismicio/next";
 /**
  * The project's Prismic repository name.
  */
-export const repositoryName = "mathematica";
+export const repositoryName = process.env.NEXT_PUBLIC_PRISMIC_REPOSITORY_NAME || "mathematica-web";
 
 /**
  * Creates a Prismic client for the project's repository. The client is used to
@@ -16,7 +16,17 @@ export function createClient({
   ...config
 }: prismicNext.CreateClientConfig = {}) {
   const client = prismic.createClient(repositoryName, {
-    routes: [],
+    accessToken: process.env.PRISMIC_ACCESS_TOKEN,
+    routes: [
+      {
+        type: 'home',
+        path: '/',
+      },
+      {
+        type: 'page',
+        path: '/:uid',
+      },
+    ],
     ...config,
   });
 
@@ -31,8 +41,7 @@ export function createClient({
 
 // Link resolver for Prismic documents
 export const linkResolver = (doc: any) => {
-  if (doc.type === "homepage") return "/";
+  if (doc.type === "home") return "/";
   if (doc.type === "page") return `/${doc.uid}`;
-  if (doc.type === "blog_post") return `/blog/${doc.uid}`;
   return "/";
 };

@@ -23,7 +23,14 @@
         "type": "Slices",
         "fieldset": "Slice Zone",
         "config": {
-          "choices": {}
+          "choices": {
+            "manifesto": {
+              "type": "SharedSlice"
+            },
+            "features_grid": {
+              "type": "SharedSlice"
+            }
+          }
         }
       }
     },

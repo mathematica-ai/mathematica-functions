@@ -23,7 +23,7 @@ export default function SignIn() {
     return (<div className="min-h-screen flex items-center justify-center bg-base-200">
       <div className="max-w-md w-full p-8 bg-base-100 rounded-lg shadow-xl">
         <h1 className="text-2xl font-bold text-center mb-8">
-          Sign in to Mathematiques.ai
+          Sign in to Mathematica.ai
         </h1>
 
         {error && (<div className="alert alert-error mb-4">

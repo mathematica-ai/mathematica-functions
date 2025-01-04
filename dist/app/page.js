@@ -1,6 +1,6 @@
 export default function Page() {
     return (<div className="container mx-auto px-4 py-8">
-			<h1 className="text-4xl font-bold mb-6">Mathematiques</h1>
+			<h1 className="text-4xl font-bold mb-6">Mathematica</h1>
 			<p className="text-lg mb-4">
 			Beauty is the harmony of form and spirit, transcending mere appearance to resonate deeply. It guides us into a life of elegance and grace. It is the pursuit of the highest form, where every detail reflects our innermost quest for perfection.
 
