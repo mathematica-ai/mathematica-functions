@@ -1,26 +1,17 @@
+import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
-import { MongoDBAdapter } from "@auth/mongodb-adapter";
-import { clientPromise } from "./mongoose";
-import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Add type for Google OAuth profile
-interface GoogleProfile {
-  email_verified: boolean;
-  email: string;
-  name: string;
-  picture: string;
-  sub: string;
-}
+import { MongoClient } from "mongodb";
+import { Resend } from "resend";
+import { renderAsync } from "@react-email/components";
+import MagicLinkTemplate from "@/emails/MagicLinkTemplate";
 
 // Extend the Session type
 declare module "next-auth" {
   interface Session {
     user: {
-      id?: string;
+      id: string;
       name?: string | null;
       email?: string | null;
       image?: string | null;
@@ -28,197 +19,137 @@ declare module "next-auth" {
   }
 }
 
+if (!process.env.RESEND_API_KEY) {
+  throw new Error("Missing RESEND_API_KEY environment variable");
+}
+
+if (!process.env.MONGODB_URI) {
+  throw new Error("Missing MONGODB_URI environment variable");
+}
+
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error("Missing NEXTAUTH_SECRET environment variable");
+}
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Create MongoDB client
+const client = new MongoClient(process.env.MONGODB_URI);
+let clientPromise: Promise<MongoClient>;
+
+if (process.env.NODE_ENV === "development") {
+  let globalWithMongo = global as typeof globalThis & {
+    _mongoClientPromise?: Promise<MongoClient>
+  }
+
+  if (!globalWithMongo._mongoClientPromise) {
+    globalWithMongo._mongoClientPromise = client.connect();
+  }
+  clientPromise = globalWithMongo._mongoClientPromise;
+} else {
+  clientPromise = client.connect();
+}
+
 export const authOptions: NextAuthOptions = {
-  debug: true,
+  adapter: MongoDBAdapter(clientPromise),
   providers: [
-    EmailProvider({
-      server: process.env.RESEND_API_KEY ? {
-        host: "smtp.resend.com",
-        port: 465,
-        auth: {
-          user: "resend",
-          pass: process.env.RESEND_API_KEY
-        }
-      } : "",
-      from: "Mathematica <onboarding@resend.dev>",
-      sendVerificationRequest: async ({ identifier, url, provider }) => {
-        try {
-          const { data, error } = await resend.emails.send({
-            from: provider.from!,
-            to: identifier,
-            subject: "Sign in to Mathematica",
-            html: `<p>Click <a href="${url}">here</a> to sign in to Mathematica.</p>
-                  <p>If you did not request this email, you can safely ignore it.</p>`
-          });
-
-          if (error) {
-            throw new Error(error.message);
-          }
-
-          console.log('Verification email sent:', data);
-        } catch (error) {
-          console.error('Error sending verification email:', error);
-          throw new Error('Failed to send verification email');
-        }
-      }
-    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_ID!,
       clientSecret: process.env.GOOGLE_SECRET!,
-      authorization: {
-        params: {
-          access_type: "offline",
-          prompt: "consent",
-          response_type: "code",
+    }),
+    EmailProvider({
+      from: "Mathematica <onboarding@resend.dev>",
+      sendVerificationRequest: async ({ identifier: email, url }) => {
+        try {
+          // Decode the URL to prevent triple encoding
+          const decodedUrl = decodeURIComponent(decodeURIComponent(url));
+          
+          const html = await renderAsync(MagicLinkTemplate({
+            url: decodedUrl,
+            host: "Mathematica Functions"
+          }));
+          
+          await resend.emails.send({
+            from: "Mathematica <onboarding@resend.dev>",
+            to: email,
+            subject: "Sign in to Mathematica Functions",
+            html,
+            text: `Sign in to Mathematica Functions\n\nClick this link to sign in: ${decodedUrl}\n\nIf you didn't request this email, you can safely ignore it.\n\nThis link will expire in 24 hours and can only be used once.`,
+          });
+        } catch (error) {
+          console.error('Error in sendVerificationRequest');
+          throw new Error("Failed to send verification email");
         }
-      }
+      },
     }),
   ],
-  adapter: MongoDBAdapter(clientPromise),
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production'
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/error",
+    verifyRequest: "/auth/verify",
+  },
+  callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "google") {
+        try {
+          const mongoClient = await clientPromise;
+          const db = mongoClient.db();
+          
+          await db.collection("users").updateOne(
+            { email: user.email },
+            {
+              $set: {
+                name: profile?.name,
+                image: profile?.image,
+                emailVerified: new Date(),
+                updatedAt: new Date(),
+              },
+            },
+            { upsert: true }
+          );
+        } catch (error) {
+          console.error("Error updating user data:", error);
+        }
       }
+      return true;
     },
-    callbackUrl: {
-      name: `next-auth.callback-url`,
-      options: {
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production'
+    async session({ session, token }) {
+      if (session?.user) {
+        session.user.id = token.sub as string;
       }
+      return session;
     },
-    csrfToken: {
-      name: `next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production'
+    async redirect({ url, baseUrl }) {
+      // Handle callback URLs
+      if (url.startsWith('/api/auth/callback')) {
+        return `${baseUrl}/functions`;
       }
+
+      // Handle relative URLs
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`;
+      }
+
+      // Handle absolute URLs from the same origin
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+
+      // Default to the functions page
+      return `${baseUrl}/functions`;
+    },
+    async jwt({ token, user, account, profile }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
     }
   },
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  callbacks: {
-    async signIn({ user, account, profile }) {
-      try {
-        console.log("Sign-in attempt:", { user, account, profile });
-        
-        if (!user.email) {
-          console.log("No email provided");
-          return false;
-        }
-
-        // Get MongoDB client
-        const client = await clientPromise;
-        const db = client.db();
-
-        // Find user by email only
-        const existingUser = await db.collection('users').findOne({ 
-          email: user.email 
-        });
-
-        console.log("Existing user:", existingUser);
-
-        if (existingUser) {
-          // Update the user with latest provider details
-          const updateResult = await db.collection('users').updateOne(
-            { email: user.email },
-            {
-              $set: {
-                provider: account?.provider,
-                providerAccountId: account?.providerAccountId,
-                name: user.name,
-                image: user.image,
-                email: user.email,
-                emailVerified: new Date(),
-                updatedAt: new Date()
-              }
-            }
-          );
-          console.log("Update result:", updateResult);
-
-          // Create account link if it doesn't exist
-          const existingAccount = await db.collection('accounts').findOne({
-            userId: existingUser._id,
-            provider: account?.provider
-          });
-
-          if (!existingAccount && account) {
-            await db.collection('accounts').insertOne({
-              userId: existingUser._id,
-              type: account.type,
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
-              access_token: account.access_token,
-              token_type: account.token_type,
-              scope: account.scope,
-              id_token: account.id_token,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            });
-            console.log("Account linked successfully");
-          }
-
-          return true;
-        }
-
-        console.log("User not found in database");
-        return false;
-      } catch (error) {
-        console.error("Sign in callback error:", error);
-        return false;
-      }
-    },
-    async redirect({ url, baseUrl }) {
-      try {
-        console.log("Redirect callback:", { url, baseUrl });
-        
-        // Always redirect to /functions after successful sign in
-        if (url.includes('auth/signin')) {
-          return `${baseUrl}/functions`;
-        }
-        
-        // Default redirects
-        if (url.startsWith("/")) return `${baseUrl}${url}`;
-        if (new URL(url).origin === baseUrl) return url;
-        return baseUrl;
-      } catch (error) {
-        console.error("Redirect callback error:", error);
-        return baseUrl;
-      }
-    },
-    async session({ session, token }) {
-      if (session?.user) {
-        session.user.id = token.sub;
-        
-        // Get the latest user data from the database
-        const client = await clientPromise;
-        const db = client.db();
-        const user = await db.collection('users').findOne({ email: session.user.email });
-        
-        if (user) {
-          session.user.name = user.name;
-          session.user.image = user.image;
-        }
-      }
-      return session;
-    },
-  },
-  pages: {
-    signIn: '/auth/signin',
-    signOut: '/',
-    error: '/auth/error',
-  },
-  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
 };
 
-export default authOptions;

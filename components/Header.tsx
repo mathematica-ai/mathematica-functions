@@ -14,6 +14,7 @@ export default function Header() {
     month: '',
     year: 0
   });
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -23,6 +24,22 @@ export default function Header() {
       year: date.getFullYear()
     });
   }, []);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (session?.user) {
+        try {
+          const response = await fetch('/api/auth/check-admin');
+          const { isAdmin } = await response.json();
+          setIsAdmin(isAdmin);
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+        }
+      }
+    };
+
+    checkAdminStatus();
+  }, [session]);
 
   if (!mounted) return null;
 
@@ -45,6 +62,16 @@ export default function Header() {
               <Link href="/functions" className="btn btn-primary btn-sm">
                 FUNCTIONS
               </Link>
+              {isAdmin && (
+                <>
+                  <Link href="/admin" className="btn btn-ghost btn-sm">
+                    Admin
+                  </Link>
+                  <Link href="/admin/organisations" className="btn btn-ghost btn-sm">
+                    Organisations
+                  </Link>
+                </>
+              )}
               <div className="dropdown dropdown-end">
                 <label tabIndex={0} className="btn btn-ghost btn-circle avatar">
                   <div className="w-8 rounded-full">

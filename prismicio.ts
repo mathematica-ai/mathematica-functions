@@ -26,6 +26,10 @@ export function createClient({
         type: 'page',
         path: '/:uid',
       },
+      {
+        type: 'blog_post',
+        path: '/blog/:uid',
+      },
     ],
     ...config,
   });
@@ -43,5 +47,6 @@ export function createClient({
 export const linkResolver = (doc: any) => {
   if (doc.type === "home") return "/";
   if (doc.type === "page") return `/${doc.uid}`;
+  if (doc.type === "blog_post") return `/blog/${doc.uid}`;
   return "/";
 };
