@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { isUserSuperAdmin } from "@/libs/auth";
 
 export default async function AdminLayout({
@@ -9,7 +9,7 @@ export default async function AdminLayout({
   children: ReactNode;
 }) {
   const isSuperAdmin = await isUserSuperAdmin();
-
+  
   if (!isSuperAdmin) {
     redirect("/functions");
   }

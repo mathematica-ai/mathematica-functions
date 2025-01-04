@@ -5,7 +5,7 @@ import slugify from "slugify";
 
 const client = new MongoClient(process.env.MONGODB_URI!);
 
-// GET /api/admin/organisations/[id]
+// GET /api/admin/projects/[id]
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -15,27 +15,27 @@ export async function GET(
     await client.connect();
     const db = client.db();
 
-    const organisation = await db
-      .collection("organisations")
+    const project = await db
+      .collection("projects")
       .findOne({ _id: new ObjectId(params.id) });
 
-    if (!organisation) {
+    if (!project) {
       return NextResponse.json(
-        { error: "Organisation not found" },
+        { error: "Project not found" },
         { status: 404 }
       );
     }
 
-    // Fetch projects for this organisation
-    const projects = await db
-      .collection("projects")
-      .find({ organisationId: new ObjectId(params.id) })
+    // Fetch workflows for this project
+    const workflows = await db
+      .collection("workflows")
+      .find({ projectId: new ObjectId(params.id) })
       .sort({ createdAt: -1 })
       .toArray();
 
     return NextResponse.json({
-      ...organisation,
-      projects
+      ...project,
+      workflows
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -45,14 +45,14 @@ export async function GET(
   }
 }
 
-// PUT /api/admin/organisations/[id]
+// PUT /api/admin/projects/[id]
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     await requireSuperAdmin();
-    const { name } = await request.json();
+    const { name, description } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -66,29 +66,42 @@ export async function PUT(
 
     const slug = slugify(name, { lower: true });
     
-    // Check if another organisation with same slug exists
-    const existing = await db
-      .collection("organisations")
+    // Check if another project with same slug exists in this organisation
+    const project = await db
+      .collection("projects")
+      .findOne({ _id: new ObjectId(params.id) });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    const existingProject = await db
+      .collection("projects")
       .findOne({
+        organisationId: project.organisationId,
         slug,
         _id: { $ne: new ObjectId(params.id) }
       });
 
-    if (existing) {
+    if (existingProject) {
       return NextResponse.json(
-        { error: "An organisation with this name already exists" },
+        { error: "A project with this name already exists in this organisation" },
         { status: 400 }
       );
     }
 
     const result = await db
-      .collection("organisations")
+      .collection("projects")
       .updateOne(
         { _id: new ObjectId(params.id) },
         {
           $set: {
             name,
             slug,
+            description,
             updatedAt: new Date(),
           },
         }
@@ -96,7 +109,7 @@ export async function PUT(
 
     if (result.matchedCount === 0) {
       return NextResponse.json(
-        { error: "Organisation not found" },
+        { error: "Project not found" },
         { status: 404 }
       );
     }
@@ -105,38 +118,9 @@ export async function PUT(
       _id: params.id,
       name,
       slug,
+      description,
       updatedAt: new Date(),
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: error.message === "Unauthorized: Super Admin access required" ? 401 : 500 }
-    );
-  }
-}
-
-// DELETE /api/admin/organisations/[id]
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await requireSuperAdmin();
-    await client.connect();
-    const db = client.db();
-
-    const result = await db
-      .collection("organisations")
-      .deleteOne({ _id: new ObjectId(params.id) });
-
-    if (result.deletedCount === 0) {
-      return NextResponse.json(
-        { error: "Organisation not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Internal server error" },

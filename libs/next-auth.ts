@@ -2,7 +2,7 @@ import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import { Resend } from "resend";
 import { renderAsync } from "@react-email/components";
 import MagicLinkTemplate from "@/emails/MagicLinkTemplate";
@@ -15,6 +15,7 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      role?: string;
     }
   }
 }
@@ -116,6 +117,23 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session?.user) {
         session.user.id = token.sub as string;
+        
+        // Fetch user's role from database
+        try {
+          const mongoClient = await clientPromise;
+          const db = mongoClient.db();
+          
+          const user = await db.collection("users").findOne(
+            { email: session.user.email },
+            { projection: { role: 1 } }
+          );
+          
+          if (user?.role) {
+            session.user.role = user.role;
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+        }
       }
       return session;
     },

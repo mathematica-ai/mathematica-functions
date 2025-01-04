@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 
@@ -22,6 +22,7 @@ export default function OrganisationsPage() {
   const fetchOrganisations = async () => {
     try {
       const response = await fetch('/api/admin/organisations');
+      if (!response.ok) throw new Error('Failed to fetch organisations');
       const data = await response.json();
       setOrganisations(data);
     } catch (error) {
@@ -30,6 +31,10 @@ export default function OrganisationsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchOrganisations();
+  }, []); // Fetch when component mounts
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,14 +45,17 @@ export default function OrganisationsPage() {
         body: JSON.stringify({ name: newOrgName }),
       });
 
-      if (!response.ok) throw new Error('Failed to create organisation');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create organisation');
+      }
 
       toast.success('Organisation created successfully');
       setShowCreateModal(false);
       setNewOrgName('');
       fetchOrganisations();
-    } catch (error) {
-      toast.error('Failed to create organisation');
+    } catch (error: any) {
+      toast.error(error.message);
     }
   };
 
@@ -117,6 +125,13 @@ export default function OrganisationsPage() {
                   </td>
                 </tr>
               ))}
+              {organisations.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="text-center py-4">
+                    No organisations found
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

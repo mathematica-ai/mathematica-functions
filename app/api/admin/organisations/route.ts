@@ -6,7 +6,7 @@ import slugify from "slugify";
 const client = new MongoClient(process.env.MONGODB_URI!);
 
 // GET /api/admin/organisations
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireSuperAdmin();
     await client.connect();
@@ -30,8 +30,8 @@ export async function GET() {
 // POST /api/admin/organisations
 export async function POST(request: Request) {
   try {
-    await requireSuperAdmin();
-    const { name } = await request.json();
+    const user = await requireSuperAdmin();
+    const { name, description } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -46,30 +46,45 @@ export async function POST(request: Request) {
     const slug = slugify(name, { lower: true });
     
     // Check if organisation with same slug exists
-    const existing = await db
+    const existingOrg = await db
       .collection("organisations")
       .findOne({ slug });
 
-    if (existing) {
+    if (existingOrg) {
       return NextResponse.json(
         { error: "An organisation with this name already exists" },
         { status: 400 }
       );
     }
 
-    const result = await db.collection("organisations").insertOne({
+    // Create organisation
+    const organisation = {
       name,
       slug,
+      description,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+      createdBy: user.id
+    };
+
+    const result = await db.collection("organisations").insertOne(organisation);
+
+    // Create organisation member record for the creator as owner
+    const member = {
+      organisationId: result.insertedId,
+      userId: user.id,
+      email: user.email,
+      role: "owner",  // Creator becomes the owner
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await db.collection("organisation_members").insertOne(member);
 
     return NextResponse.json({
       _id: result.insertedId,
-      name,
-      slug,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      ...organisation,
     });
   } catch (error: any) {
     return NextResponse.json(
