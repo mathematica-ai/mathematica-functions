@@ -1,61 +1,56 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/libs/next-auth";
-import { createCheckout } from "@/libs/stripe";
-import connectMongo from "@/libs/mongoose";
-import User from "@/models/User";
+import { connectToDatabase } from "@/libs/mongo";
 
-// This function is used to create a Stripe Checkout Session (one-time payment or subscription)
-// It's called by the <ButtonCheckout /> component
-// By default, it doesn't force users to be authenticated. But if they are, it will prefill the Checkout data with their email and/or credit card
-export async function POST(req: NextRequest) {
-  const body = await req.json();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-08-16'
+});
 
-  if (!body.priceId) {
-    return NextResponse.json(
-      { error: "Price ID is required" },
-      { status: 400 }
-    );
-  } else if (!body.successUrl || !body.cancelUrl) {
-    return NextResponse.json(
-      { error: "Success and cancel URLs are required" },
-      { status: 400 }
-    );
-  } else if (!body.mode) {
-    return NextResponse.json(
-      {
-        error:
-          "Mode is required (either 'payment' for one-time payments or 'subscription' for recurring subscription)",
-      },
-      { status: 400 }
-    );
-  }
+interface StripeUser {
+  customerId?: string;
+  email?: string;
+}
 
+async function getUserFromDb() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) return null;
+
+  const db = await connectToDatabase();
+  const collection = db.connection.collection('users');
+  return collection.findOne({ email: session.user.email });
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const body = await request.json();
+    const user = await getUserFromDb();
 
-    await connectMongo();
+    const stripeUser: StripeUser | undefined = user ? {
+      email: user.email,
+      // Only include customerId if it exists in your user model
+      ...(user.stripeCustomerId && { customerId: user.stripeCustomerId })
+    } : undefined;
 
-    const user = await User.findById(session?.user?.id);
-
-    const { priceId, mode, successUrl, cancelUrl } = body;
-
-    const stripeSessionURL = await createCheckout({
-      priceId,
-      mode,
-      successUrl,
-      cancelUrl,
-      // If user is logged in, it will pass the user ID to the Stripe Session so it can be retrieved in the webhook later
-      clientReferenceId: user?._id?.toString(),
-      // If user is logged in, this will automatically prefill Checkout data like email and/or credit card for faster checkout
-      user,
-      // If you send coupons from the frontend, you can pass it here
-      // couponId: body.couponId,
+    const session = await stripe.checkout.sessions.create({
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/canceled`,
+      mode: 'payment',
+      billing_address_collection: 'required',
+      line_items: body.items,
+      metadata: body.metadata,
+      client_reference_id: user?._id?.toString(),
+      ...(stripeUser && { customer: stripeUser.customerId }),
+      customer_email: stripeUser?.email,
     });
 
-    return NextResponse.json({ url: stripeSessionURL });
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: e?.message }, { status: 500 });
+    return NextResponse.json({ url: session.url });
+  } catch (error) {
+    console.error('Stripe checkout error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create checkout session' },
+      { status: 500 }
+    );
   }
 }

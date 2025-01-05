@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import config from "@/config";
-import logo from "@/app/icon.png";
 
 // Add the Footer to the bottom of your landing page and more.
 // The support link is connected to the config.js file. If there's no config.resend.supportEmail, the link won't be displayed.
@@ -18,7 +17,7 @@ const Footer = () => {
               className="flex gap-2 justify-center md:justify-start items-center"
             >
               <Image
-                src={logo}
+                src="/icon.png"
                 alt={`${config.appName} logo`}
                 priority={true}
                 className="w-6 h-6"
@@ -38,7 +37,7 @@ const Footer = () => {
             </p>
 
             <a
-              href="https://shipfa.st/?ref=shipfast_badge"
+              href="https://www.mathematica.ai/?ref=shipfast_badge"
               title="Go to ShipFast"
               target="_blank"
               className="mt-4 inline-block cursor-pointer rounded bg-neutral px-2 py-1 text-sm text-neutral-content ring-1 ring-base-content/10 duration-200 hover:ring-neutral"

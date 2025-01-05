@@ -2,7 +2,14 @@
 
 import { SliceComponentProps } from "@prismicio/react";
 import { TextBlock } from "./TextBlock";
+import Manifesto from "./Manifesto";
 
-export const components = {
+type SliceComponents = {
+  text_block: typeof TextBlock;
+  manifesto: typeof Manifesto;
+};
+
+export const components: SliceComponents = {
   text_block: TextBlock,
-} as Record<string, (props: SliceComponentProps) => JSX.Element>;
+  manifesto: Manifesto,
+};

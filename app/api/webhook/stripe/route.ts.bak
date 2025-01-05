@@ -1,0 +1,145 @@
+import Stripe from "stripe";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import { findCheckoutSession } from "@/libs/stripe";
+import { connectToDatabase } from "@/libs/mongo";
+import { ObjectId } from "mongodb";
+
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('STRIPE_SECRET_KEY is not defined in environment variables');
+}
+
+if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  throw new Error('STRIPE_WEBHOOK_SECRET is not defined in environment variables');
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2023-08-16",
+  typescript: true,
+});
+
+interface UserDocument {
+  _id: ObjectId;
+  email: string;
+  name: string;
+  stripeCustomerId?: string;
+  priceId?: string;
+  hasAccess?: boolean;
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.text();
+    const signature = headers().get('stripe-signature');
+
+    if (!signature) {
+      return NextResponse.json(
+        { error: 'Missing stripe-signature header' },
+        { status: 400 }
+      );
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Invalid signature' },
+        { status: 400 }
+      );
+    }
+
+    const session = await findCheckoutSession(
+      (event.data.object as Stripe.Checkout.Session).id
+    );
+
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      );
+    }
+
+    const db = await connectToDatabase();
+    const users = db.connection.collection<UserDocument>('users');
+
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        if (!session.client_reference_id) {
+          return NextResponse.json(
+            { error: 'No client reference ID found' },
+            { status: 400 }
+          );
+        }
+
+        const user = await users.findOne({
+          _id: new ObjectId(session.client_reference_id)
+        });
+
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+
+        const checkoutSession = event.data.object as Stripe.Checkout.Session;
+        const lineItems = await stripe.checkout.sessions.listLineItems(checkoutSession.id);
+        const priceId = lineItems.data[0]?.price?.id;
+
+        await users.updateOne(
+          { _id: user._id },
+          {
+            $set: {
+              stripeCustomerId: session.customer as string,
+              priceId,
+              hasAccess: true
+            }
+          }
+        );
+
+        break;
+      }
+
+      case 'customer.subscription.deleted':
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const user = await users.findOne({
+          stripeCustomerId: subscription.customer as string
+        });
+
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+
+        await users.updateOne(
+          { _id: user._id },
+          {
+            $set: {
+              hasAccess: subscription.status === 'active'
+            }
+          }
+        );
+
+        break;
+      }
+    }
+
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return NextResponse.json(
+      { 
+        error: error instanceof Error ? error.message : 'Webhook handler failed'
+      },
+      { status: 400 }
+    );
+  }
+}

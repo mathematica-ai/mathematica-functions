@@ -1,36 +1,57 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from "next/navigation";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { WorkflowResponse } from "@/types/models";
 
+interface Project {
+  _id: string;
+  name: string;
+  description?: string;
+  organisationId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function WorkflowsPage() {
   const router = useRouter();
   const [workflows, setWorkflows] = useState<WorkflowResponse[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Fetch workflows on component mount
-  useEffect(() => {
-    fetchWorkflows();
-  }, []);
-
-  async function fetchWorkflows() {
+  const fetchWorkflows = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/workflows');
-      if (!response.ok) {
-        throw new Error('Failed to fetch workflows');
+      // First, get all projects
+      const projectsResponse = await fetch('/api/admin/projects');
+      if (!projectsResponse.ok) {
+        throw new Error('Failed to fetch projects');
       }
-      const data = await response.json();
-      setWorkflows(data);
+      const projects = await projectsResponse.json();
+      setProjects(projects);
+
+      // Then, get workflows for each project
+      const allWorkflows = [];
+      for (const project of projects) {
+        const response = await fetch(`/api/admin/projects/${project._id}/workflows`);
+        if (response.ok) {
+          const workflows = await response.json();
+          allWorkflows.push(...workflows.map((w: WorkflowResponse) => ({ ...w, projectId: project._id })));
+        }
+      }
+      setWorkflows(allWorkflows);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    fetchWorkflows();
+  }, [fetchWorkflows]);
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -119,6 +140,21 @@ export default function WorkflowsPage() {
                   className="textarea textarea-bordered"
                 />
               </div>
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Project</span>
+                </label>
+                <select
+                  name="projectId"
+                  className="select select-bordered"
+                  required
+                >
+                  <option value="">Select a project</option>
+                  {projects.map((project) => (
+                    <option key={project._id} value={project._id}>{project.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="modal-action">
                 <button type="submit" className="btn btn-primary">Create</button>
                 <button
@@ -141,9 +177,15 @@ export default function WorkflowsPage() {
     const formData = new FormData(e.currentTarget);
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
+    const projectId = formData.get('projectId') as string;
+
+    if (!projectId) {
+      setError('Project is required');
+      return;
+    }
 
     try {
-      const response = await fetch('/api/admin/workflows', {
+      const response = await fetch(`/api/admin/projects/${projectId}/workflows`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

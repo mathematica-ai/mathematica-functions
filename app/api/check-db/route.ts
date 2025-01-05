@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { checkMongoConnection } from "@/libs/db-check";
+import { connectToDatabase } from "@/libs/mongo";
 
 export async function GET() {
   try {
-    const result = await checkMongoConnection();
-    return NextResponse.json(result);
+    await connectToDatabase();
+    return NextResponse.json({ status: "ok", message: "Database connection successful" });
   } catch (error) {
     console.error("DB check failed:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'An unknown error occurred' },
+      { status: 500 }
+    );
   }
 } 

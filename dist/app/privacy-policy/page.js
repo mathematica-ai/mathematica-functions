@@ -8,7 +8,7 @@ import config from "@/config";
 // 4. Paste the answer from ChatGPT directly in the <pre> tag below
 // You are an excellent lawyer.
 // I need your help to write a simple privacy policy for my website. Here is some context:
-// - Website: https://shipfa.st
+// - Website: https://www.mathematica.ai
 // - Name: ShipFast
 // - Description: A JavaScript code boilerplate to help entrepreneurs launch their startups faster
 // - User data collected: name, email and payment information
@@ -39,7 +39,7 @@ const PrivacyPolicy = () => {
         <pre className="leading-relaxed whitespace-pre-wrap" style={{ fontFamily: "sans-serif" }}>
           {`Last Updated: 2023-08-25
 
-Thank you for visiting ShipFast ("we," "us," or "our"). This Privacy Policy outlines how we collect, use, and protect your personal and non-personal information when you use our website located at https://shipfa.st (the "Website").
+Thank you for visiting ShipFast ("we," "us," or "our"). This Privacy Policy outlines how we collect, use, and protect your personal and non-personal information when you use our website located at https://www.mathematica.ai (the "Website").
 
 By accessing or using the Website, you agree to the terms of this Privacy Policy. If you do not agree with the practices described in this policy, please do not use the Website.
 

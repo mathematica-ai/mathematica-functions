@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Image from 'next/image';
 
 export const metadata: Metadata = {
   title: "Check your email",
@@ -10,10 +11,12 @@ export default function VerifyRequest() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <img
+          <Image
             className="mx-auto h-12 w-auto"
             src="https://mathematica-functions.s3.eu-west-3.amazonaws.com/logo.png"
             alt="Mathematica"
+            width={48}
+            height={48}
           />
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Check your email
@@ -45,7 +48,7 @@ export default function VerifyRequest() {
               </h3>
               <div className="mt-2 text-sm text-blue-700">
                 <p>
-                  The link will expire in 24 hours. If you don't see the email,
+                  The link will expire in 24 hours. If you don&apos;t see the email,
                   check your spam folder.
                 </p>
               </div>

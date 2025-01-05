@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { createClient } from "@/prismicio";
+import { redirectToPreviewURL } from "@prismicio/next";
+import { createClient } from "./prismicio";
 import { getToken } from "next-auth/jwt";
 
 export async function middleware(request: NextRequest) {
-  const client = createClient();
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
@@ -13,28 +13,19 @@ export async function middleware(request: NextRequest) {
   // Protect /functions route
   if (request.nextUrl.pathname.startsWith('/functions')) {
     if (!token) {
-      return NextResponse.redirect(new URL('/auth/signin', request.url));
+      const signInUrl = new URL('/auth/signin', request.url);
+      signInUrl.searchParams.set('callbackUrl', request.url);
+      return NextResponse.redirect(signInUrl);
     }
+
+    // Allow the request to continue
+    return NextResponse.next();
   }
 
   // Handle Prismic preview
   if (request.nextUrl.pathname === "/api/preview") {
-    const { token: previewToken, documentId } = request.nextUrl.query;
-
-    if (!previewToken) {
-      return new Response("Missing token", { status: 401 });
-    }
-
-    try {
-      const response = await client.enableDataToPreviews({
-        token: previewToken as string,
-        documentId: documentId as string,
-      });
-
-      return response;
-    } catch (error) {
-      return new Response("Invalid token", { status: 401 });
-    }
+    const client = createClient();
+    return redirectToPreviewURL({ client, request });
   }
 
   return NextResponse.next();

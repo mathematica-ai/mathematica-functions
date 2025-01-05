@@ -3,10 +3,29 @@ import { MongoClient, ObjectId } from "mongodb";
 import { requireSuperAdmin } from "@/libs/auth";
 import { randomBytes } from "crypto";
 import { Resend } from "resend";
-import { OrganisationInvitation, OrganisationInvitationResponse } from "@/types/models";
 
 const client = new MongoClient(process.env.MONGODB_URI!);
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+interface OrganisationInvitation {
+  _id?: ObjectId;
+  organisationId: ObjectId;
+  email: string;
+  token: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+interface OrganisationInvitationResponse {
+  _id: string;
+  organisationId: string;
+  email: string;
+  token: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: Date;
+  expiresAt: Date;
+}
 
 // POST /api/admin/organisations/[id]/invitations
 export async function POST(
@@ -39,23 +58,7 @@ export async function POST(
       );
     }
 
-    // Check if user is already a member
-    const existingMember = await db
-      .collection("organisation_members")
-      .findOne({
-        organisationId: new ObjectId(params.id),
-        email: email.toLowerCase(),
-        status: "active"
-      });
-
-    if (existingMember) {
-      return NextResponse.json(
-        { error: "User is already a member of this organisation" },
-        { status: 400 }
-      );
-    }
-
-    // Check if there's a pending invitation
+    // Check if invitation already exists
     const existingInvitation = await db
       .collection("organisation_invitations")
       .findOne({

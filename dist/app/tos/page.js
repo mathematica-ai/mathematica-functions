@@ -8,14 +8,14 @@ import config from "@/config";
 // 4. Paste the answer from ChatGPT directly in the <pre> tag below
 // You are an excellent lawyer.
 // I need your help to write a simple Terms & Services for my website. Here is some context:
-// - Website: https://shipfa.st
+// - Website: https://www.mathematica.ai
 // - Name: ShipFast
 // - Contact information: marc@shipfa.st
 // - Description: A JavaScript code boilerplate to help entrepreneurs launch their startups faster
 // - Ownership: when buying a package, users can download code to create apps. They own the code but they do not have the right to resell it. They can ask for a full refund within 7 day after the purchase.
 // - User data collected: name, email and payment information
 // - Non-personal data collection: web cookies
-// - Link to privacy-policy: https://shipfa.st/privacy-policy
+// - Link to privacy-policy: https://www.mathematica.ai/privacy-policy
 // - Governing Law: France
 // - Updates to the Terms: users will be updated by email
 // Please write a simple Terms & Services for my site. Add the current date. Do not add or explain your reasoning. Answer:
@@ -41,7 +41,7 @@ const TOS = () => {
 
 Welcome to ShipFast!
 
-These Terms of Service ("Terms") govern your use of the ShipFast website at https://shipfa.st ("Website") and the services provided by ShipFast. By using our Website and services, you agree to these Terms.
+These Terms of Service ("Terms") govern your use of the ShipFast website at https://www.mathematica.ai ("Website") and the services provided by ShipFast. By using our Website and services, you agree to these Terms.
 
 1. Description of ShipFast
 
@@ -53,7 +53,7 @@ When you purchase a package from ShipFast, you gain the right to download and us
 
 3. User Data and Privacy
 
-We collect and store user data, including name, email, and payment information, as necessary to provide our services. For details on how we handle your data, please refer to our Privacy Policy at https://shipfa.st/privacy-policy.
+We collect and store user data, including name, email, and payment information, as necessary to provide our services. For details on how we handle your data, please refer to our Privacy Policy at https://www.mathematica.ai/privacy-policy.
 
 4. Non-Personal Data Collection
 

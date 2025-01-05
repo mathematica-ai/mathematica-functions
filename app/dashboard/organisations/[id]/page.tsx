@@ -1,111 +1,57 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'react-hot-toast';
-import { apiService } from '@/libs/apiService';
-import type { OrganisationCreate } from '@/types/organisation';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useParams } from "next/navigation";
+import { toast } from "react-hot-toast";
 
-export default function OrganisationForm({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const isNew = params.id === 'new';
-  const [loading, setLoading] = useState(!isNew);
-  const [form, setForm] = useState<OrganisationCreate>({
-    name: '',
-    address: '',
-  });
+interface Organisation {
+  _id: string;
+  name: string;
+  description: string;
+}
+
+export default function OrganisationPage() {
+  const params = useParams();
+  const [organisation, setOrganisation] = useState<Organisation | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadOrganisation = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/organisations/${params.id}`);
+      if (!response.ok) throw new Error('Failed to fetch organisation');
+      const data = await response.json();
+      setOrganisation(data);
+    } catch (error) {
+      toast.error('Failed to fetch organisation');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [params.id]);
 
   useEffect(() => {
-    if (!isNew) {
-      loadOrganisation();
-    }
-  }, [isNew, params.id]);
+    loadOrganisation();
+  }, [loadOrganisation]);
 
-  const loadOrganisation = async () => {
-    try {
-      const response = await apiService.organisations.get(params.id);
-      const { id, ...formData } = response.data;
-      setForm(formData);
-    } catch (error) {
-      console.error('Failed to load organisation:', error);
-      toast.error('Failed to load organisation');
-      router.push('/dashboard/organisations');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (isNew) {
-        await apiService.organisations.create(form);
-        toast.success('Organisation created successfully');
-      } else {
-        await apiService.organisations.update(params.id, form);
-        toast.success('Organisation updated successfully');
-      }
-      router.push('/dashboard/organisations');
-    } catch (error) {
-      console.error('Failed to save organisation:', error);
-      toast.error('Failed to save organisation');
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="loading loading-spinner loading-lg"></div>
+      <div className="flex justify-center items-center h-64">
+        <span className="loading loading-spinner loading-lg"></span>
       </div>
     );
   }
 
+  if (!organisation) {
+    return <div>Organisation not found</div>;
+  }
+
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">
-        {isNew ? 'Create Organisation' : 'Edit Organisation'}
-      </h1>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text">Name</span>
-          </label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="input input-bordered"
-            required
-          />
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-4">{organisation.name}</h1>
+      <div className="card bg-base-100 shadow-xl">
+        <div className="card-body">
+          <p>{organisation.description}</p>
         </div>
-
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text">Address</span>
-          </label>
-          <input
-            type="text"
-            value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
-            className="input input-bordered"
-            required
-          />
-        </div>
-
-        <div className="flex gap-4">
-          <button type="submit" className="btn btn-primary">
-            Save
-          </button>
-          <button 
-            type="button" 
-            onClick={() => router.back()}
-            className="btn btn-ghost"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 } 

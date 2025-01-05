@@ -1,61 +1,31 @@
 import mongoose from 'mongoose';
 import { MongoClient } from 'mongodb';
 
-// AWS DocumentDB Configuration
-const connectionOptions = {
-  ssl: true,
-  replicaSet: 'rs0',
-  readPreference: 'secondaryPreferred',
-  retryWrites: false,
-  tls: true,
-  tlsCAFile: `${process.cwd()}/certs/rds-combined-ca-bundle.pem`,
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-};
+const MONGODB_URI = process.env.MONGODB_URI!;
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('Please add your MongoDB URI to .env.local');
+if (!MONGODB_URI) {
+  throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
 }
 
-// Cache the database connection
-let cachedConnection: typeof mongoose | null = null;
+let cachedMongoose: typeof mongoose | null = null;
+let cachedMongoClient: MongoClient | null = null;
 
-async function connectToDatabase() {
-  if (cachedConnection) {
-    console.log('Using cached database connection');
-    return cachedConnection;
+export async function connectToDatabase(): Promise<typeof mongoose> {
+  if (cachedMongoose) {
+    return cachedMongoose;
   }
 
-  try {
-    // Connect to MongoDB/DocumentDB
-    const connection = await mongoose.connect(process.env.MONGODB_URI, connectionOptions);
-    
-    console.log('New database connection established');
-    cachedConnection = connection;
-    return connection;
-  } catch (error) {
-    console.error('Database connection error:', error);
-    throw error;
-  }
+  cachedMongoose = await mongoose.connect(MONGODB_URI);
+  return cachedMongoose;
 }
 
-// Alternative connection method using MongoClient (if needed)
-let cachedClient: MongoClient | null = null;
-
-async function connectWithMongoClient() {
-  if (cachedClient) {
-    return cachedClient;
+export async function connectWithMongoClient(): Promise<MongoClient> {
+  if (cachedMongoClient) {
+    return cachedMongoClient;
   }
 
-  try {
-    const client = new MongoClient(process.env.MONGODB_URI, connectionOptions);
-    await client.connect();
-    cachedClient = client;
-    return client;
-  } catch (error) {
-    console.error('MongoClient connection error:', error);
-    throw error;
-  }
+  cachedMongoClient = await MongoClient.connect(MONGODB_URI);
+  return cachedMongoClient;
 }
 
-export { connectToDatabase as default, connectWithMongoClient };
+export default connectToDatabase;

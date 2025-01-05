@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from "next/navigation";
 import { PlusIcon, EnvelopeIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { OrganisationInvitationResponse } from "@/types/models";
@@ -12,11 +12,7 @@ export default function InvitationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  useEffect(() => {
-    fetchInvitations();
-  }, []);
-
-  async function fetchInvitations() {
+  const fetchInvitations = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/organisations/${params.id}/invitations`);
       if (!response.ok) {
@@ -29,7 +25,11 @@ export default function InvitationsPage() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchInvitations();
+  }, [fetchInvitations]);
 
   async function handleResend(token: string) {
     try {

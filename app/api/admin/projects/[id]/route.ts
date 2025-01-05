@@ -5,18 +5,39 @@ import slugify from "slugify";
 
 const client = new MongoClient(process.env.MONGODB_URI!);
 
+interface Project {
+  _id?: ObjectId;
+  name: string;
+  slug: string;
+  description?: string;
+  organisationId: ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ProjectResponse {
+  _id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  organisationId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // GET /api/admin/projects/[id]
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     await requireSuperAdmin();
+
     await client.connect();
     const db = client.db();
 
     const project = await db
-      .collection("projects")
+      .collection<Project>("projects")
       .findOne({ _id: new ObjectId(params.id) });
 
     if (!project) {
@@ -26,17 +47,17 @@ export async function GET(
       );
     }
 
-    // Fetch workflows for this project
-    const workflows = await db
-      .collection("workflows")
-      .find({ projectId: new ObjectId(params.id) })
-      .sort({ createdAt: -1 })
-      .toArray();
+    const response: ProjectResponse = {
+      _id: project._id!.toString(),
+      name: project.name,
+      slug: project.slug,
+      description: project.description,
+      organisationId: project.organisationId.toString(),
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt
+    };
 
-    return NextResponse.json({
-      ...project,
-      workflows
-    });
+    return NextResponse.json(response);
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Internal server error" },
@@ -64,11 +85,8 @@ export async function PUT(
     await client.connect();
     const db = client.db();
 
-    const slug = slugify(name, { lower: true });
-    
-    // Check if another project with same slug exists in this organisation
     const project = await db
-      .collection("projects")
+      .collection<Project>("projects")
       .findOne({ _id: new ObjectId(params.id) });
 
     if (!project) {
@@ -78,12 +96,15 @@ export async function PUT(
       );
     }
 
+    const slug = slugify(name, { lower: true });
+
+    // Check if another project with same slug exists in this organisation
     const existingProject = await db
       .collection("projects")
       .findOne({
+        _id: { $ne: new ObjectId(params.id) },
         organisationId: project.organisationId,
-        slug,
-        _id: { $ne: new ObjectId(params.id) }
+        slug
       });
 
     if (existingProject) {
@@ -93,34 +114,62 @@ export async function PUT(
       );
     }
 
-    const result = await db
+    const updatedProject: Partial<Project> = {
+      name,
+      slug,
+      description,
+      updatedAt: new Date(),
+    };
+
+    await db
       .collection("projects")
       .updateOne(
         { _id: new ObjectId(params.id) },
-        {
-          $set: {
-            name,
-            slug,
-            description,
-            updatedAt: new Date(),
-          },
-        }
+        { $set: updatedProject }
       );
 
-    if (result.matchedCount === 0) {
+    const response: ProjectResponse = {
+      _id: project._id!.toString(),
+      name: updatedProject.name || project.name,
+      slug: updatedProject.slug || project.slug,
+      description: updatedProject.description || project.description,
+      organisationId: project.organisationId.toString(),
+      createdAt: project.createdAt,
+      updatedAt: updatedProject.updatedAt || project.updatedAt
+    };
+
+    return NextResponse.json(response);
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: error.message === "Unauthorized: Super Admin access required" ? 401 : 500 }
+    );
+  }
+}
+
+// DELETE /api/admin/projects/[id]
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await requireSuperAdmin();
+
+    await client.connect();
+    const db = client.db();
+
+    const result = await db
+      .collection("projects")
+      .deleteOne({ _id: new ObjectId(params.id) });
+
+    if (result.deletedCount === 0) {
       return NextResponse.json(
         { error: "Project not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      _id: params.id,
-      name,
-      slug,
-      description,
-      updatedAt: new Date(),
-    });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Internal server error" },

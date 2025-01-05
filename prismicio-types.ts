@@ -1,4 +1,7 @@
 import { PrismicDocument } from "@prismicio/types";
+import type { ManifestoSlice } from "./prismicio-types.d";
+
+export type { ManifestoSlice };
 
 export interface HeaderDocument extends PrismicDocument {
   data: {

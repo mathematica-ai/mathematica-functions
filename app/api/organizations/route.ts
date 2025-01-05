@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/libs/next-auth";
 import { ObjectId } from "mongodb";
 import { clientPromise } from "@/libs/mongoose";
+import { connectWithMongoClient } from '@/libs/mongo';
 
 export async function GET() {
   const client = await clientPromise;
@@ -12,30 +11,27 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { name } = await req.json();
+  
+  if (!name) {
+    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
 
-  const { name } = await req.json();
-  const client = await clientPromise;
+  const client = await connectWithMongoClient();
   const db = client.db();
   const result = await db.collection('organizations').insertOne({ name, createdAt: new Date() });
-  return NextResponse.json(result.ops[0]);
+  return NextResponse.json({ _id: result.insertedId, name, createdAt: new Date() });
 }
 
 export async function DELETE(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await req.json();
+  
+  if (!id) {
+    return NextResponse.json({ error: 'ID is required' }, { status: 400 });
   }
 
-  const { id } = await req.json();
-  const client = await clientPromise;
+  const client = await connectWithMongoClient();
   const db = client.db();
-  const result = await db.collection('organizations').deleteOne({ _id: new ObjectId(id) });
-  if (result.deletedCount === 0) {
-    return NextResponse.json({ error: "Organization not found" }, { status: 404 });
-  }
+  await db.collection('organizations').deleteOne({ _id: new ObjectId(id) });
   return NextResponse.json({ success: true });
 } 

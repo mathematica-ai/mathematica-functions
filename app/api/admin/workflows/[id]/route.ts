@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { MongoClient, ObjectId } from "mongodb";
 import { requireSuperAdmin } from "@/libs/auth";
 import { WorkflowResponse } from "@/types/models";
+import slugify from "slugify";
 
 const client = new MongoClient(process.env.MONGODB_URI!);
 
@@ -33,6 +34,7 @@ export async function GET(
       slug: workflow.slug,
       description: workflow.description,
       status: workflow.status,
+      streaming: workflow.streaming || false,
       projectId: workflow.projectId.toString(),
       organisationId: workflow.organisationId.toString(),
       createdAt: workflow.createdAt,
@@ -55,11 +57,11 @@ export async function PUT(
 ) {
   try {
     await requireSuperAdmin();
-    const { name, description, status, workflow_id } = await request.json();
+    const { name, description, status, streaming } = await request.json();
 
-    if (!name || !workflow_id) {
+    if (!name) {
       return NextResponse.json(
-        { error: "Name and Workflow ID are required" },
+        { error: "Name is required" },
         { status: 400 }
       );
     }
@@ -67,33 +69,18 @@ export async function PUT(
     await client.connect();
     const db = client.db();
 
+    const slug = slugify(name, { lower: true });
+
     // Check if workflow exists
-    const workflow = await db
+    const existingWorkflow = await db
       .collection("workflows")
       .findOne({ _id: new ObjectId(params.id) });
 
-    if (!workflow) {
+    if (!existingWorkflow) {
       return NextResponse.json(
         { error: "Workflow not found" },
         { status: 404 }
       );
-    }
-
-    // Check if workflow_id is already in use by another workflow
-    if (workflow_id !== workflow.workflow_id) {
-      const existingWorkflow = await db
-        .collection("workflows")
-        .findOne({
-          _id: { $ne: new ObjectId(params.id) },
-          workflow_id
-        });
-
-      if (existingWorkflow) {
-        return NextResponse.json(
-          { error: "Workflow ID is already in use" },
-          { status: 400 }
-        );
-      }
     }
 
     // Update workflow
@@ -102,18 +89,19 @@ export async function PUT(
       {
         $set: {
           name,
+          slug,
           description,
           status,
-          workflow_id,
-          updatedAt: new Date(),
+          streaming: streaming === true,
+          updatedAt: new Date()
         }
       }
     );
 
-    if (result.modifiedCount === 0) {
+    if (result.matchedCount === 0) {
       return NextResponse.json(
-        { error: "No changes were made" },
-        { status: 400 }
+        { error: "Workflow not found" },
+        { status: 404 }
       );
     }
 
@@ -136,6 +124,7 @@ export async function PUT(
       slug: updatedWorkflow.slug,
       description: updatedWorkflow.description,
       status: updatedWorkflow.status,
+      streaming: updatedWorkflow.streaming || false,
       projectId: updatedWorkflow.projectId.toString(),
       organisationId: updatedWorkflow.organisationId.toString(),
       createdAt: updatedWorkflow.createdAt,

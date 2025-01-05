@@ -10,12 +10,11 @@ export interface User {
 }
 
 export interface Organisation {
-  _id: ObjectId;
+  _id: string;
   name: string;
-  slug: string;
   description?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Project {
@@ -35,6 +34,7 @@ export interface Workflow {
   slug: string;
   description?: string;
   status: "active" | "inactive";
+  streaming: boolean;
   projectId: ObjectId;
   organisationId: ObjectId;
   createdAt: Date;

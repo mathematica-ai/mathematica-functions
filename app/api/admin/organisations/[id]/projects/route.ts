@@ -5,6 +5,26 @@ import slugify from "slugify";
 
 const client = new MongoClient(process.env.MONGODB_URI!);
 
+interface Project {
+  _id?: ObjectId;
+  name: string;
+  slug: string;
+  description?: string;
+  organisationId: ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ProjectResponse {
+  _id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  organisationId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // POST /api/admin/organisations/[id]/projects
 export async function POST(
   request: Request,
@@ -54,7 +74,7 @@ export async function POST(
     }
 
     // Create new project
-    const project = {
+    const project: Omit<Project, '_id'> = {
       name,
       slug,
       description,
@@ -65,10 +85,17 @@ export async function POST(
 
     const result = await db.collection("projects").insertOne(project);
 
-    return NextResponse.json({
-      _id: result.insertedId,
-      ...project,
-    });
+    const response: ProjectResponse = {
+      _id: result.insertedId.toString(),
+      name: project.name,
+      slug: project.slug,
+      description: project.description,
+      organisationId: project.organisationId.toString(),
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt
+    };
+
+    return NextResponse.json(response);
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "Internal server error" },

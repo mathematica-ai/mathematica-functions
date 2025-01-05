@@ -1,76 +1,74 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'react-hot-toast';
-import { apiService } from '@/libs/apiService';
 import DataTable from '@/components/ui/DataTable';
-import type { Organisation } from '@/types/organisation';
+import { Organisation } from '@/types/models';
 
-const columns = [
-  { key: 'name', label: 'Name' },
-  { key: 'address', label: 'Address' },
-];
+// Extend Organisation to match the Row type requirements
+type OrganisationRow = Organisation & { id: string };
 
 export default function OrganisationsPage() {
-  const [organisations, setOrganisations] = useState<Organisation[]>([]);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [organisations, setOrganisations] = useState<OrganisationRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const columns = [
+    { key: 'name', label: 'Name' },
+    { key: 'description', label: 'Description' },
+    { key: 'createdAt', label: 'Created At' }
+  ];
 
   useEffect(() => {
-    loadOrganisations();
+    fetchOrganisations();
   }, []);
 
-  const loadOrganisations = async () => {
+  async function fetchOrganisations() {
     try {
-      const response = await apiService.organisations.getAll();
-      setOrganisations(response.data);
+      const response = await fetch('/api/organisations');
+      if (!response.ok) throw new Error('Failed to fetch organisations');
+      const data: Organisation[] = await response.json();
+      // Transform the data to include the id field required by DataTable
+      const rowData = data.map(org => ({
+        ...org,
+        id: org._id // Map _id to id for DataTable compatibility
+      }));
+      setOrganisations(rowData);
     } catch (error) {
-      console.error('Failed to load organisations:', error);
-      toast.error('Failed to load organisations');
+      console.error('Error:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  }
+
+  const handleEdit = (row: OrganisationRow) => {
+    router.push(`/dashboard/organisations/${row._id}`);
+  };
+
+  const handleDelete = async (row: OrganisationRow) => {
+    if (!confirm('Are you sure you want to delete this organisation?')) return;
+
+    try {
+      const response = await fetch(`/api/organisations/${row._id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) throw new Error('Failed to delete organisation');
+
+      setOrganisations(orgs => orgs.filter(org => org._id !== row._id));
+    } catch (error) {
+      console.error('Error:', error);
     }
   };
 
-  const handleEdit = (id: string) => {
-    router.push(`/dashboard/organisations/${id}`);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this organisation?')) {
-      try {
-        await apiService.organisations.delete(id);
-        setOrganisations(organisations.filter(org => org.id !== id));
-        toast.success('Organisation deleted successfully');
-      } catch (error) {
-        console.error('Failed to delete organisation:', error);
-        toast.error('Failed to delete organisation');
-      }
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="loading loading-spinner loading-lg"></div>
-      </div>
-    );
+  if (isLoading) {
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Organisations</h1>
-        <button 
-          onClick={() => router.push('/dashboard/organisations/new')}
-          className="btn btn-primary"
-        >
-          Add Organisation
-        </button>
-      </div>
-
-      <DataTable 
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Organisations</h1>
+      <DataTable<OrganisationRow>
         data={organisations}
         columns={columns}
         onEdit={handleEdit}

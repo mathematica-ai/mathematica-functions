@@ -56,13 +56,25 @@ export async function GET(
   }
 }
 
-// DELETE /api/admin/organisations/[id]/members/[memberId]
+// DELETE /api/admin/organisations/[id]/members
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string; memberId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     await requireSuperAdmin();
+
+    // Get memberId from URL search params
+    const url = new URL(request.url);
+    const memberId = url.searchParams.get('memberId');
+    
+    if (!memberId) {
+      return NextResponse.json(
+        { error: "Member ID is required" },
+        { status: 400 }
+      );
+    }
+
     await client.connect();
     const db = client.db();
 
@@ -82,7 +94,7 @@ export async function DELETE(
     const member = await db
       .collection("organisation_members")
       .findOne({
-        _id: new ObjectId(params.memberId),
+        _id: new ObjectId(memberId),
         organisationId: new ObjectId(params.id)
       });
 
@@ -103,15 +115,23 @@ export async function DELETE(
 
     // Remove the member
     await db.collection("organisation_members").deleteOne({
-      _id: new ObjectId(params.memberId),
+      _id: new ObjectId(memberId),
       organisationId: new ObjectId(params.id)
     });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    // Handle authentication errors specifically
+    if (error.message?.includes("Unauthorized") || error.status === 401) {
+      return NextResponse.json(
+        { error: error.message || "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     return NextResponse.json(
       { error: error.message || "Internal server error" },
-      { status: error.message === "Unauthorized: Super Admin access required" ? 401 : 500 }
+      { status: 500 }
     );
   }
 } 

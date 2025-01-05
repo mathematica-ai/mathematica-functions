@@ -1,36 +1,67 @@
-import { connectToDatabase, connectWithMongoClient } from './mongo';
+import { connectToDatabase } from './mongo';
+import mongoose from 'mongoose';
+
+export async function getDatabase() {
+  const connection = await connectToDatabase();
+  return connection;
+}
+
+export async function getCollection(collectionName: string) {
+  const db = await getDatabase();
+  return db.connection.collection(collectionName);
+}
+
+export function convertToObjectId(id: string) {
+  return new mongoose.Types.ObjectId(id);
+}
+
+export async function getOrganisations() {
+  const collection = await getCollection('organizations');
+  return collection.find().toArray();
+}
+
+export async function getWorkflows(projectId: string) {
+  const collection = await getCollection('workflows');
+  return collection.find({ projectId: convertToObjectId(projectId) }).toArray();
+}
+
+export async function getInvitation(token: string) {
+  const collection = await getCollection('invitations');
+  return collection.findOne({ token });
+}
+
+export async function withDatabase<T>(callback: (db: mongoose.Connection) => Promise<T>): Promise<T> {
+  const connection = await connectToDatabase();
+  return callback(connection.connection);
+}
 
 export async function executeWithRetry<T>(
   operation: () => Promise<T>,
-  maxRetries = 3,
-  delay = 1000
+  maxRetries: number = 3,
+  delay: number = 1000
 ): Promise<T> {
-  let lastError;
+  let lastError: Error | null = null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
-      lastError = error;
-      console.error(`Attempt ${attempt} failed:`, error);
-      
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, delay * attempt));
-      }
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt === maxRetries) break;
+      await new Promise(resolve => setTimeout(resolve, delay * attempt));
     }
   }
   
   throw lastError;
 }
 
-export async function withDatabase<T>(
-  operation: (db: any) => Promise<T>
-): Promise<T> {
-  const connection = await connectToDatabase();
-  try {
-    return await operation(connection);
-  } catch (error) {
-    console.error('Database operation error:', error);
-    throw error;
-  }
-} 
+export default {
+  getDatabase,
+  getCollection,
+  convertToObjectId,
+  getOrganisations,
+  getWorkflows,
+  getInvitation,
+  withDatabase,
+  executeWithRetry
+}; 

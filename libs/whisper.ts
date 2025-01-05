@@ -39,7 +39,7 @@ export async function transcribeAudio(
       throw new Error('No transcription received');
     }
   } catch (error) {
-    console.error('Whisper API Error:', error.response?.data || error);
+    console.error('Whisper API Error:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -74,7 +74,11 @@ export async function translateAudio(
       throw new Error('No translation received');
     }
   } catch (error) {
-    console.error('Whisper Translation API Error:', error.response?.data || error);
+    if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response) {
+      console.error('Whisper Translation API Error:', error.response.data);
+    } else {
+      console.error('Whisper Translation API Error:', error);
+    }
     throw error;
   }
 } 

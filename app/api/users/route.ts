@@ -1,13 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createUser, getUserById, updateUser, deleteUser } from '@/services/userService';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const user = await createUser(body);
+    const data = await request.json();
+    if (!data.name || !data.email || !data.password) {
+      return NextResponse.json(
+        { error: 'Name, email, and password are required' },
+        { status: 400 }
+      );
+    }
+    const userData = {
+      name: data.name,
+      email: data.email,
+      password: data.password
+    };
+    const user = await createUser(userData);
     return NextResponse.json(user, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create user' },
+      { status: 500 }
+    );
   }
 }
 
@@ -22,7 +36,10 @@ export async function GET(request: Request) {
     
     return NextResponse.json(user);
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to get user' },
+      { status: 400 }
+    );
   }
 }
 
@@ -38,7 +55,10 @@ export async function PUT(request: Request) {
     
     return NextResponse.json(user);
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update user' },
+      { status: 400 }
+    );
   }
 }
 
@@ -48,11 +68,15 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     
-    const user = await deleteUser(id);
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    
-    return NextResponse.json({ message: 'User deleted successfully' });
+    await deleteUser(id);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete user' },
+      { status: 500 }
+    );
   }
 } 

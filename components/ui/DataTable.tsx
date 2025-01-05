@@ -1,19 +1,31 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+type Row = {
+  id: string | number;
+  [key: string]: any;
+};
 
-interface DataTableProps {
-  data: any[];
-  columns: {
-    key: string;
-    label: string;
-  }[];
-  onEdit?: (id: string) => void;
-  onDelete?: (id: string) => void;
+interface Column {
+  key: string;
+  label: string;
 }
 
-export default function DataTable({ data, columns, onEdit, onDelete }: DataTableProps) {
+interface DataTableProps<T extends Row> {
+  data: T[];
+  columns: Column[];
+  // These callbacks are used in the implementation
+  /* eslint-disable no-unused-vars */
+  onEdit?: (row: T) => void;
+  onDelete?: (row: T) => void;
+  /* eslint-enable no-unused-vars */
+}
+
+export default function DataTable<T extends Row>({ 
+  data, 
+  columns, 
+  onEdit, 
+  onDelete 
+}: DataTableProps<T>) {
   return (
     <div className="overflow-x-auto">
       <table className="table w-full">
@@ -34,7 +46,7 @@ export default function DataTable({ data, columns, onEdit, onDelete }: DataTable
               <td className="flex gap-2">
                 {onEdit && (
                   <button 
-                    onClick={() => onEdit(row.id)}
+                    onClick={() => onEdit(row)}
                     className="btn btn-sm btn-primary"
                   >
                     Edit
@@ -42,7 +54,7 @@ export default function DataTable({ data, columns, onEdit, onDelete }: DataTable
                 )}
                 {onDelete && (
                   <button 
-                    onClick={() => onDelete(row.id)}
+                    onClick={() => onDelete(row)}
                     className="btn btn-sm btn-error"
                   >
                     Delete

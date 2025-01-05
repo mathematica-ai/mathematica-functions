@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     } catch (error) {
       console.error('Whisper API Error:', error);
       return NextResponse.json(
-        { error: error.message || "Processing failed" },
+        { error: error instanceof Error ? error.message : "Processing failed" },
         { status: 500 }
       );
     }

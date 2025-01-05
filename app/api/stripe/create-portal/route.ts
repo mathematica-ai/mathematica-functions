@@ -1,52 +1,58 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/libs/next-auth";
-import connectMongo from "@/libs/mongoose";
-import { createCustomerPortal } from "@/libs/stripe";
-import User from "@/models/User";
+import { connectToDatabase } from "@/libs/mongo";
+import { ObjectId } from 'mongodb';
 
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-08-16'
+});
 
-  if (session) {
-    try {
-      await connectMongo();
+interface UserDocument {
+  _id: ObjectId;
+  email: string;
+  name: string;
+  stripeCustomerId?: string;
+}
 
-      const body = await req.json();
+async function getUserFromDb(id: string): Promise<UserDocument | null> {
+  const db = await connectToDatabase();
+  const collection = db.connection.collection('users');
+  return collection.findOne({ _id: new ObjectId(id) }) as Promise<UserDocument | null>;
+}
 
-      const { id } = session.user;
-
-      const user = await User.findById(id);
-
-      if (!user?.customerId) {
-        return NextResponse.json(
-          {
-            error:
-              "You don't have a billing account yet. Make a purchase first.",
-          },
-          { status: 400 }
-        );
-      } else if (!body.returnUrl) {
-        return NextResponse.json(
-          { error: "Return URL is required" },
-          { status: 400 }
-        );
-      }
-
-      const stripePortalUrl = await createCustomerPortal({
-        customerId: user.customerId,
-        returnUrl: body.returnUrl,
-      });
-
-      return NextResponse.json({
-        url: stripePortalUrl,
-      });
-    } catch (e) {
-      console.error(e);
-      return NextResponse.json({ error: e?.message }, { status: 500 });
+export async function POST() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
     }
-  } else {
-    // Not Signed in
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+    const user = await getUserFromDb(session.user.id);
+    if (!user?.stripeCustomerId) {
+      return NextResponse.json(
+        {
+          error: "No Stripe customer ID found. Please complete a purchase first."
+        },
+        { status: 400 }
+      );
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/account`,
+    });
+
+    return NextResponse.json({ url: portalSession.url });
+  } catch (error) {
+    console.error('Stripe portal error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create portal session' },
+      { status: 500 }
+    );
   }
 }
