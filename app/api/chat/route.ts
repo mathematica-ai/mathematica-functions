@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/libs/next-auth";
 import { OpenAI } from 'openai';
+import type { Message, ChatRequest } from "@/types/chat";
+import type { ChatCompletionMessageParam } from 'openai/resources/chat';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -17,14 +19,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const { messages } = await req.json();
+    const { message, history = [] } = (await req.json()) as ChatRequest;
 
-    if (!messages || !Array.isArray(messages)) {
+    if (!message) {
       return NextResponse.json(
-        { error: "Invalid messages format" },
+        { error: "Message is required" },
         { status: 400 }
       );
     }
+
+    // Convert our message format to OpenAI's format
+    const messages: ChatCompletionMessageParam[] = [
+      ...history.map(msg => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content
+      })),
+      { role: "user", content: message }
+    ];
 
     // Create a new ReadableStream
     const stream = new ReadableStream({
