@@ -1,5 +1,4 @@
 import React from 'react';
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import Header from "@/components/Header";
@@ -9,8 +8,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/libs/next-auth";
 import { createPrismicClient } from "@/libs/prismicClient";
 import { Metadata } from "next";
-
-const inter = Inter({ subsets: ["latin"] });
+import { gtSuperDisplay, gtSuperText } from './fonts';
 
 export const metadata: Metadata = {
   title: "Mathematica.AI",
@@ -55,7 +53,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" className={inter.className}>
+    <html lang="en" className={`${gtSuperText.variable} ${gtSuperDisplay.variable}`}>
       <head>
         <link rel="icon" type="image/x-icon" href="/favicon.ico" media="(prefers-color-scheme: light)" />
         <link rel="icon" type="image/x-icon" href="/favicon-dark.ico" media="(prefers-color-scheme: dark)" />
@@ -64,7 +62,7 @@ export default async function RootLayout({
         <link rel="apple-touch-icon-precomposed" href="/apple-icon-precomposed.png" media="(prefers-color-scheme: light)" />
         <link rel="apple-touch-icon-precomposed" href="/apple-icon-precomposed-dark.png" media="(prefers-color-scheme: dark)" />
       </head>
-      <body>
+      <body className="font-text">
         <Providers session={session}>
           <ThemeFavicon />
           <Header session={session} headerData={headerData} />
